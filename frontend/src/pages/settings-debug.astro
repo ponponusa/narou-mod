@@ -83,7 +83,7 @@ import ConsolePanel from "../components/ConsolePanel.svelte";
 
       try {
         console.log("Fetching settings variables...");
-        const url = "http://172.26.39.220:33000/api/v2/settings/variables";
+        const url = "/api/v2/settings/variables";
         console.log("Fetch URL:", url);
 
         const response = await fetch(url);

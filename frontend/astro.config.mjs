@@ -9,6 +9,14 @@ import tailwindcss from '@tailwindcss/vite';
 
 // バックエンドのポート情報を読み込む
 function getBackendPort() {
+  if (process.env.NAROU_TEST_BACKEND_PORT) {
+    const testPort = Number.parseInt(process.env.NAROU_TEST_BACKEND_PORT, 10);
+    if (Number.isInteger(testPort) && testPort > 0 && testPort <= 65535) {
+      return testPort;
+    }
+    throw new Error('NAROU_TEST_BACKEND_PORT must be a valid TCP port');
+  }
+
   const portFile = join(process.cwd(), 'public', 'backend-port.json');
   if (existsSync(portFile)) {
     try {

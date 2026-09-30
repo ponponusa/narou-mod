@@ -4,12 +4,12 @@ These instructions apply to `frontend/`. First follow `../AGENTS.md`, `../.agent
 
 ## Current Stack and Boundaries
 
-- Astro 5 with the Svelte integration provides pages, layouts, static output, and development proxying.
+- Astro 7 with the Svelte integration provides pages, layouts, static output, and development proxying.
 - Svelte 5 components use runes such as `$state`, `$props`, `$derived`, `$effect`, and `$bindable`.
 - Tailwind CSS 4 is loaded through `@tailwindcss/vite`; shared CSS starts in `src/styles/global.css`.
-- TypeScript 5 runs in Astro strict mode with bundler module resolution.
+- TypeScript 6 runs in Astro strict mode with bundler module resolution.
 - Playwright is the current browser test framework. There is no Vitest/unit-test command in `package.json`.
-- npm and `package-lock.json` are the dependency source of truth; CI uses Node.js 20.
+- npm and `package-lock.json` are the dependency source of truth; CI uses Node.js 24.
 
 Exact package versions belong to `package-lock.json`. Check `package.json`, the lockfile, and framework config before relying on a version-sensitive API.
 
@@ -38,7 +38,9 @@ Run these from `frontend/`:
 - `npm run check`: run Astro/TypeScript diagnostics.
 - `npm run format`: format supported source files.
 - `npm run format:check`: check formatting without writing.
-- `npx playwright test`: run browser tests; Playwright starts/reuses the Astro dev server.
+- `npm run validate:html`: validate all HTML pages in the current `dist/` output.
+- `npm run test:e2e:smoke`: run deterministic, backend-free browser coverage for all routes.
+- `npm run test:e2e:integration`: run the isolated Ruby backend and verify the Vite proxy path (Linux/macOS only).
 
 For the integrated local stack, inspect and use `../scripts/process_control.sh` or `../scripts/process_control.ps1`. The backend defaults are 5678 for REST and 5679 for push when `backend-port.json` is unavailable.
 
@@ -62,7 +64,7 @@ Choose checks based on the change:
 
 1. Run `npm run format:check` and `npm run check` for TypeScript, Astro, or Svelte changes.
 2. Run `npm run build` for routing, configuration, bundling, or integration changes.
-3. Run the relevant Playwright test for user-visible flows; add/update coverage when behavior changes.
+3. Run the smoke Playwright suite for user-visible flows and the integration suite for proxy/backend changes; add/update coverage when behavior changes.
 4. For layout or interaction changes, verify the built UI in a browser at relevant desktop/mobile widths and capture evidence for the PR.
 5. For backend integration, run the matching Ruby API specs as well as frontend checks.
 

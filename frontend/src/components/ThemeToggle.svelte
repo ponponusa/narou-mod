@@ -43,20 +43,20 @@
   aria-label={isDark ? "ライトモードに切り替え" : "ダークモードに切り替え"}
   title={isDark ? "ライトモードに切り替え" : "ダークモードに切り替え"}
 >
-  <div class="toggle-container">
+  <span class="toggle-container">
     <!-- ライトモードアイコン（左側） -->
-    <div class="icon-wrapper" class:active={!isDark}>
+    <span class="icon-wrapper" class:active={!isDark}>
       <i class="fas fa-sun"></i>
-    </div>
+    </span>
 
     <!-- スライダー -->
-    <div class="slider" class:dark={isDark}></div>
+    <span class="slider" class:dark={isDark}></span>
 
     <!-- ダークモードアイコン（右側） -->
-    <div class="icon-wrapper" class:active={isDark}>
+    <span class="icon-wrapper" class:active={isDark}>
       <i class="fas fa-moon"></i>
-    </div>
-  </div>
+    </span>
+  </span>
 </button>
 
 <style>

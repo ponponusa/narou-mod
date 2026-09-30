@@ -1,0 +1,7 @@
+export const INTEGRATION_FRONTEND_PORT = 4321;
+export const SMOKE_FRONTEND_PORT = 4322;
+export const BACKEND_PORT = 45678;
+export const PUSH_SERVER_PORT = BACKEND_PORT + 1;
+
+export const INTEGRATION_FRONTEND_ORIGIN = `http://localhost:${INTEGRATION_FRONTEND_PORT}`;
+export const SMOKE_FRONTEND_ORIGIN = `http://localhost:${SMOKE_FRONTEND_PORT}`;

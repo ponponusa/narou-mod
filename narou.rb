@@ -15,16 +15,10 @@ script_dir = File.expand_path(__dir__)
 # 1. gem のパスを $LOAD_PATH から除外
 # 2. 既にロード済みの gem ファイルを $LOADED_FEATURES から除外
 # 3. RubyGems の gem 自動解決をリセット
-$LOAD_PATH.reject! { |path| path.include?("narou-mod") && path.include?("gems") }
-$LOADED_FEATURES.reject! { |path| path.include?("narou-mod") && path.include?("gems") }
+require_relative "lib/loading/gem_conflict_guard"
+Narou::GemConflictGuard.remove_installed_gem!("narou-mod")
 $LOAD_PATH.unshift(script_dir) unless $LOAD_PATH.include?(script_dir)
-
-# RubyGems が narou-mod gem を自動解決しないようにする
-if defined?(Gem)
-  Gem.loaded_specs.delete("narou-mod")
-end
 
 # 共通起動ロジックを実行
 require "lib/loading/bootstrap"
 Narou::Bootstrap.run(script_dir, ARGV)
-

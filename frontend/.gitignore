@@ -5,6 +5,8 @@ dist/
 
 # dependencies
 node_modules/
+playwright-report/
+test-results/
 
 # logs
 npm-debug.log*
