@@ -113,7 +113,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
 
@@ -121,13 +121,38 @@ jobs:
         working-directory: frontend
         run: npm ci
 
+      - name: Install Playwright Chromium
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+
       - name: Build Astro UI
         working-directory: frontend
         run: npm run build
 
+      - name: Validate built HTML
+        working-directory: frontend
+        run: npm run validate:html
+
       - name: Check TypeScript types
         working-directory: frontend
         run: npm run check
+
+      - name: Run frontend migration smoke tests
+        working-directory: frontend
+        run: npm run test:e2e:smoke
+
+      - name: Run frontend/backend integration tests
+        working-directory: frontend
+        run: npm run test:e2e:integration
+
+      - name: Upload Playwright failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-failure-artifacts
+          path: frontend/test-results
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Run RSpec
         run: |
@@ -196,7 +221,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
 
@@ -254,7 +279,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
 

@@ -1,8 +1,8 @@
 # Upstream provenance
 
 - Repository: https://github.com/ponponusa/agent-context-maintainer
-- Imported commit: `596e859faa09c27e465371c3da73dc6407947ece` (tag `v0.1.0`)
-- Imported on: 2026-08-05
+- Imported commit: `25354c94db194f9c09bfaa3108542e9674325c7b` (tag `v0.1.1`)
+- Imported on: 2026-08-06
 - License: MIT; see `LICENSE` in this directory.
 
 ## Imported payload
@@ -30,13 +30,13 @@ English upstream documentation is authoritative; Japanese companion files follow
 
 ## Local integration patch
 
-`scripts/agent_context.py` carries three small local fixes:
+All three previous local integration patches have been upstreamed in `v0.1.1` and removed:
 
-- Preserve the line boundary when a replaced managed block is followed by hand-written content, and preserve a final newline for a block at EOF. The pinned upstream implementation consumes the end-marker newline, which can concatenate the marker with the following heading or leave generated-only files without a newline.
-- Treat an unchanged generated skill-route block as a no-op instead of rewriting `.agents/routing.md` on every `skills routes` run.
-- Omit the checkout-directory basename (`Root:` line) from the generated `core.md` snapshot and `skill-health.md` summary. The basename is not repository-stable, so embedding it makes the CI drift check fail for checkouts cloned under a different directory name.
+- Line boundary preservation following replaced managed blocks and final newline preservation at EOF (`replace_generated_block`).
+- Unchanged skill-route block no-op handling (`sync_skill_routes`).
+- Removal of non-repository-stable checkout-directory basename (`Root:` line) from `core.md` and `skill-health.md`.
 
-Keep these patches until upstream contains equivalent fixes, then remove them during a reviewed pin update. Re-verified against `v0.1.0` on 2026-08-05: upstream still lacks both fixes, so both patches were re-applied unchanged.
+Re-verified against `v0.1.1` on 2026-08-06: payload matches upstream `v0.1.1` cleanly with zero local patches.
 
 ## Known validation warnings
 
@@ -46,4 +46,4 @@ The pinned upstream payload is valid but currently reports these non-blocking Sk
 - `script-without-compatibility`: upstream frontmatter does not declare its Python compatibility field.
 - `codex-metadata-unparsed`: SkillOps records the Codex adapter but does not parse its schema.
 
-Keep these as upstream facts rather than patching the vendored `SKILL.md` locally. Re-evaluate them when updating the pinned commit. Re-confirmed unchanged with `v0.1.0` on 2026-08-05; the new `v0.1.0` listing-budget checks (`long-listing-entry`, `listing-budget-estimate`) report nothing for this repository.
+Keep these as upstream facts rather than patching the vendored `SKILL.md` locally. Re-evaluate them when updating the pinned commit. Re-confirmed unchanged with `v0.1.1` on 2026-08-06; the `v0.1.0` listing-budget checks (`long-listing-entry`, `listing-budget-estimate`) report nothing for this repository.

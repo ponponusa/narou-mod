@@ -55,9 +55,23 @@ describe Command::List::NovelDecorator do
 
       context "新着から６時間以内だったら" do
         let(:id) { 1 }
+        # 新規ダウンロード直後は new_arrivals_date と last_update がほぼ同時刻になる
+        let(:novel) do
+          Database.instance.get_data("id", id).merge(
+            "last_update" => Time.parse("2016-06-19 12:00 +09:00"),
+            "general_lastup" => Time.parse("2016-06-18 21:50 +09:00")
+          )
+        end
         let(:freeze_time) { Time.parse("2016-06-19 17:24:51 +09:00") }
         it "紫色で表示する" do
           is_expected.to eq "<bold><magenta>16/06/19</magenta></bold>"
+        end
+
+        context "view_date_type is general_lastup" do
+          let(:view_date_type) { "general_lastup" }
+          it "新着登録日ではなく最新話掲載日を紫色で表示する" do
+            is_expected.to eq "<bold><magenta>16/06/18</magenta></bold>"
+          end
         end
       end
 
@@ -66,6 +80,13 @@ describe Command::List::NovelDecorator do
         let(:freeze_time) { Time.parse("2016-07-01 01:28:09 +09:00") }
         it "緑色で表示する" do
           is_expected.to eq "<bold><green>16/07/01</green></bold>"
+        end
+
+        context "view_date_type is general_lastup" do
+          let(:view_date_type) { "general_lastup" }
+          it "更新日ではなく最新話掲載日を緑色で表示する" do
+            is_expected.to eq "<bold><green>12/08/26</green></bold>"
+          end
         end
       end
 

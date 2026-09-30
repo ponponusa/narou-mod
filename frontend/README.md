@@ -4,10 +4,10 @@ Narou.rb MOD の新しいフロントエンド実装です。Astro + Svelte を�
 
 ## 技術スタック
 
-- **Astro 5.x**: 静的サイトジェネレーター / フレームワーク
+- **Astro 7.x**: 静的サイトジェネレーター / フレームワーク
 - **Svelte 5.x**: リアクティブUIコンポーネント
 - **Tailwind CSS 4.x**: ユーティリティファーストCSSフレームワーク
-- **TypeScript**: 型安全な開発環境
+- **TypeScript 6.x**: 型安全な開発環境
 
 ## 特徴
 
@@ -22,8 +22,8 @@ Narou.rb MOD の新しいフロントエンド実装です。Astro + Svelte を�
 
 ### 前提条件
 
-- Node.js 18.x 以上
-- npm または yarn
+- Node.js 24 以上
+- npm
 
 ### インストール
 
@@ -55,13 +55,13 @@ npm run preview -- --host 0.0.0.0 --port 4321
 
 ### バックエンドとの連携
 
-このフロントエンドは、Narou.rb の Ruby/Sinatra バックエンドAPI（デフォルト: `http://localhost:33000`）と連携して動作します。
+このフロントエンドは、Narou.rb の Ruby/Sinatra バックエンドAPIと連携して動作します。バックエンドのポートは初回起動時に決まり、以後は設定値を再利用します。明示的に固定する場合は `--port` を指定してください。
 
 1. バックエンドを起動:
 
    ```bash
    cd /mnt/c/git/narou
-   bundle exec ruby narou.rb web -p 33000
+   bundle exec ruby narou.rb web --port 5678 --no-frontend
    ```
 
 2. フロントエンドを起動:
@@ -72,6 +72,7 @@ npm run preview -- --host 0.0.0.0 --port 4321
    ```
 
 `.env` ファイルで `PUBLIC_API_BASE_URL` を変更することで、バックエンドのURLを調整できます。
+`narou-mod web --no-frontend` でも `.env` と `public/backend-port.json` は更新されるため、別ターミナルで起動した `npm run dev` は同じバックエンドへ接続します。
 
 ## 🧞 コマンド
 
@@ -82,7 +83,7 @@ npm run preview -- --host 0.0.0.0 --port 4321
 | `npm run build`           | プロダクション用ビルド (`./dist/`)                |
 | `npm run preview`         | ビルド結果をプレビュー                            |
 | `npm run astro ...`       | Astro CLIコマンドを実行                          |
-| `npm run astro check`     | TypeScript型チェック                             |
+| `npm run check`           | TypeScript / Astro 型チェック                     |
 
 ## プロジェクト構造
 

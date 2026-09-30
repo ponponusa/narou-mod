@@ -191,8 +191,7 @@
             placeholder="https://ncode.syosetu.com/n9669bk/&#10;n1234ab&#10;https://kakuyomu.jp/works/..."
             rows="6"
             class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
-            disabled={isLoading}
-          ></textarea>
+            disabled={isLoading}></textarea>
           <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
             小説家になろう、カクヨムなどのURLまたはncodeを入力してください。<br
             />

@@ -54,6 +54,9 @@ module Command
       @opt.on("-f", "--force", "既存のプロセスを強制的に停止して起動") {
         @options["force"] = true
       }
+      @opt.on("--no-frontend", "Astro 開発サーバーを起動しない") {
+        @options["no-frontend"] = true
+      }
     end
 
     def execute(argv)
@@ -85,6 +88,7 @@ module Command
         argv << "--open-browser" if @options["open-browser"]
         argv << "--verbose" if @options["verbose"]
         argv << "--force" if @options["force"]
+        argv << "--no-frontend" if @options["no-frontend"]
         argv << "--internal-boot" # 内部実行用のフラグを追加
         argv_copy = argv.dup
 
@@ -196,7 +200,7 @@ module Command
       @server_port = params[:port]
 
       # フロントエンド設定を更新
-      update_frontend_env(@server_port) if should_start_frontend?
+      update_frontend_env(@server_port) if frontend_available?
 
       # 起動メッセージを表示
       Command::OutputHelper.render("web_starting", {
@@ -310,6 +314,10 @@ module Command
       # --no-frontendオプションが指定されている場合は起動しない
       return false if @options["no-frontend"]
 
+      frontend_available?
+    end
+
+    def frontend_available?
       # 開発環境（frontend/ディレクトリが存在）の場合のみ
       frontend_dir = File.join(Narou.root_dir, "frontend")
       File.directory?(frontend_dir) && File.exist?(File.join(frontend_dir, "package.json"))
@@ -456,7 +464,7 @@ module Command
                     end
 
       # PUBLIC_PUSH_SERVER_PORTを更新
-      env_content.gsub!(/^PUBLIC_PUSH_SERVER_PORT=.*$/, "PUBLIC_PUSH_SERVER_PORT=#{ws_port}")
+      env_content = env_content.gsub(/^PUBLIC_PUSH_SERVER_PORT=.*$/, "PUBLIC_PUSH_SERVER_PORT=#{ws_port}")
 
       File.write(env_file, env_content)
 
@@ -464,7 +472,7 @@ module Command
       config_file = File.join(frontend_dir, "astro.config.mjs")
       if File.exist?(config_file)
         config_content = File.read(config_file)
-        config_content.gsub!(%r{target:\s*['"]http://localhost:\d+['"]}, "target: 'http://localhost:#{port}'")
+        config_content = config_content.gsub(%r{target:\s*['"]http://localhost:\d+['"]}, "target: 'http://localhost:#{port}'")
         File.write(config_file, config_content)
       end
 

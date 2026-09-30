@@ -1114,9 +1114,9 @@
     data-console-panel
     data-is-open="false"
   >
-    <div
+    <span
       class="w-2 h-2 rounded-full {isConnected ? 'bg-green-500' : 'bg-red-500'}"
-    ></div>
+    ></span>
     <span class="text-sm">コンソール</span>
     {#if logs.length > 0}
       <span class="px-2 py-0.5 bg-blue-600 text-white text-xs rounded-full">

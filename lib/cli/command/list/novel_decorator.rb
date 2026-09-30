@@ -37,26 +37,25 @@ module Command
         new_arrivals_date = novel["new_arrivals_date"] || novel[:new_arrivals_date]
         last_update       = novel["last_update"]       || novel[:last_update]
 
-        # 表示に使う日付（デフォは view_date_type）
-        shown_time = base_time
+        # 表示する日付は常に view_date_type（--gl 指定時は general_lastup）の値を使う。
+        # 新着・更新の判定は表示色にのみ影響させる
+        return "" unless base_time.respond_to?(:strftime)
+        date = base_time.strftime("%y/%m/%d")
 
-        # 新着（magenta）: new_arrivals_date を表示する
+        # 新着（magenta）
         if new_arrivals_date && last_update &&
           new_arrivals_date >= last_update &&
           (new_arrivals_date + ANNOTATION_COLOR_TIME_LIMIT) >= now
-          shown_time = new_arrivals_date
-          return "<bold><magenta>#{shown_time.strftime('%y/%m/%d')}</magenta></bold>"
+          return "<bold><magenta>#{date}</magenta></bold>"
         end
 
-        # 更新のみ（green）: last_update を表示（表示キーが general_lastup でも緑は last_update 基準）
+        # 更新のみ（green）: 表示キーが general_lastup でも緑色の判定は last_update 基準
         if last_update && (last_update + ANNOTATION_COLOR_TIME_LIMIT) >= now
-          shown_time ||= last_update
-          return "<bold><green>#{shown_time.strftime('%y/%m/%d')}</green></bold>"
+          return "<bold><green>#{date}</green></bold>"
         end
 
         # 通常表示
-        return "" unless shown_time.respond_to?(:strftime)
-        shown_time.strftime("%y/%m/%d")
+        date
       end
 
       def decorate_kind

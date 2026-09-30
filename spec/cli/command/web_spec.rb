@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
 require_relative "../../spec_helper"
+require "lib/narou/process_manager"
+require "lib/web/appserver"
 
 RSpec.describe Command::Web do
   subject(:command) { described_class.new }
@@ -35,11 +37,13 @@ RSpec.describe Command::Web do
 
       it "forwards options to internal-boot process" do
         expect(command).to receive(:system) do |ruby_path, x_flag, script, subcmd, *args|
-          expect(args).to include("--log-file", "test.log", "--no-browser", "--verbose", "--internal-boot")
+          expect(args).to include(
+            "--log-file", "test.log", "--no-browser", "--verbose", "--no-frontend", "--internal-boot"
+          )
           true
         end
         system("true") # $?.exitstatus を 0 に設定
-        command.execute(["--log-file", "test.log", "--no-browser", "--verbose"])
+        command.execute(["--log-file", "test.log", "--no-browser", "--verbose", "--no-frontend"])
       end
 
       it "removes --open-browser and appends --no-browser when rebooting" do
@@ -75,6 +79,7 @@ RSpec.describe Command::Web do
       before do
         # Inventory のモック
         allow(Inventory).to receive(:load).and_return({"server-port" => 5678})
+        allow(Narou::AppServer).to receive(:create_address).and_return({ host: "127.0.0.1", port: 5678 })
 
         # Helper のモック
         allow(Helper).to receive(:open_browser)
@@ -83,12 +88,12 @@ RSpec.describe Command::Web do
         allow(command).to receive(:start_server)
         allow(command).to receive(:start_frontend)
         allow(command).to receive(:setup_signal_handlers)
+        allow(command).to receive(:cleanup_existing_processes)
         allow(command).to receive(:should_start_frontend?).and_return(false)
+        allow(command).to receive(:update_frontend_env)
       end
 
       it "sets up logger with --log-file option" do
-        require "lib/web/appserver"
-
         expect(Command::OutputHelper).to receive(:setup_logger).with("app.log")
         expect(Narou::AppServer).to receive(:configure_access_log).with(true).and_call_original
 
@@ -96,8 +101,6 @@ RSpec.describe Command::Web do
       end
 
       it "keeps access logging disabled without --verbose or --log-file" do
-        require "lib/web/appserver"
-
         expect(Narou::AppServer).to receive(:configure_access_log).with(false).and_call_original
 
         command.execute(["--internal-boot", "--no-browser"])
@@ -165,6 +168,11 @@ RSpec.describe Command::Web do
       expect(command.instance_variable_get(:@options)["verbose"]).to be true
     end
 
+    it "parses --no-frontend option" do
+      command.execute(["--internal-boot", "--no-frontend", "--no-browser"])
+      expect(command.instance_variable_get(:@options)["no-frontend"]).to be true
+    end
+
     it "parses --legacy option" do
       web_legacy = instance_double(Command::WebLegacy)
       allow(Command::WebLegacy).to receive(:new).and_return(web_legacy)
@@ -175,6 +183,17 @@ RSpec.describe Command::Web do
       expect(Command::WebLegacy).to receive(:new).and_return(web_legacy)
 
       command.execute(["--legacy"])
+    end
+  end
+
+  describe "#should_start_frontend?" do
+    it "does not start the frontend when --no-frontend is specified" do
+      original_narou_env = ENV.delete("NAROU_ENV")
+      command.instance_variable_set(:@options, { "no-frontend" => true })
+
+      expect(command.send(:should_start_frontend?)).to be false
+    ensure
+      ENV["NAROU_ENV"] = original_narou_env if original_narou_env
     end
   end
 
@@ -248,11 +267,36 @@ RSpec.describe Command::Web do
         end
 
         allow(Process).to receive(:detach)
+        allow(Process).to receive(:setpgid)
 
         command.send(:start_frontend)
 
         expect(block_executed).to be true
       end
+    end
+  end
+
+  describe "#update_frontend_env" do
+    let(:temporary_root) { Pathname(Dir.mktmpdir("narou-frontend-env-spec")) }
+    let(:frontend_dir) { temporary_root.join("frontend") }
+
+    before do
+      FileUtils.mkdir_p(frontend_dir)
+      allow(Narou).to receive(:root_dir).and_return(temporary_root)
+    end
+
+    after do
+      FileUtils.remove_entry(temporary_root) if temporary_root.exist?
+    end
+
+    it "creates connection settings when no frontend environment file exists" do
+      command.send(:update_frontend_env, 8765)
+
+      expect(frontend_dir.join(".env").read).to include("PUBLIC_PUSH_SERVER_PORT=8766")
+      expect(JSON.parse(frontend_dir.join("public", "backend-port.json").read)).to include(
+        "backend_port" => 8765,
+        "push_server_port" => 8766
+      )
     end
   end
 
@@ -262,6 +306,7 @@ RSpec.describe Command::Web do
       allow(command).to receive(:setup_signal_handlers)
       allow(command).to receive(:start_server)
       allow(command).to receive(:update_frontend_env)
+      allow(Narou::AppServer).to receive(:create_address).and_return({ host: "127.0.0.1", port: 5678 })
 
       # ProcessManager のモック
       backend_manager = instance_double(Narou::ProcessManager)
@@ -291,6 +336,23 @@ RSpec.describe Command::Web do
       allow(Inventory).to receive(:load).with(no_args).and_return({})
 
       expect(Narou::AppServer).to receive(:create_address).with(8080).and_return({ host: "127.0.0.1", port: 8080 })
+
+      command.send(:boot)
+    end
+
+    it "updates frontend connection settings even when frontend startup is disabled" do
+      allow(Narou::AppServer).to receive(:create_address).and_return({ host: "127.0.0.1", port: 8765 })
+      allow(command).to receive(:frontend_available?).and_return(true)
+
+      expect(command).to receive(:update_frontend_env).with(8765)
+
+      command.send(:boot)
+    end
+
+    it "does not create frontend settings outside a frontend development checkout" do
+      allow(command).to receive(:frontend_available?).and_return(false)
+
+      expect(command).not_to receive(:update_frontend_env)
 
       command.send(:boot)
     end
