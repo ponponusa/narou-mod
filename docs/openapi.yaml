@@ -11,9 +11,21 @@ info:
     ## バージョニング
 
     - **API v2** (`/api/v2/*`): 最新の RESTful API（推奨）
-    - **Legacy API v1** (`/api/*`): 旧 API（非推奨、後方互換性のため提供）
+    - **Legacy API v1** (`/api/*`): 旧 API（非推奨、後方互換性のため提供。本仕様書の対象外）
 
     新規開発では必ず API v2 を使用してください。
+
+    ## レスポンス形式
+
+    成功時は `success: true` と `data`、任意の `message`、Unix 時間の `timestamp` を返します。
+    エラー時は `success: false` と `error.code` / `error.message`（必要に応じて `error.details`）を返します。
+
+    JSON リクエストボディを受け取るエンドポイントは、ボディが JSON として解析できない場合
+    `400 INVALID_JSON` を返します。
+
+    CORS プリフライト: `/api` 配下のすべてのパスは、グローバルな `before` フィルタにより
+    `OPTIONS` リクエストへ CORS ヘッダー付きの `200`（空ボディ）を返します。
+    個別に定義された `options` ルートはこのフィルタより後に評価されるため到達せず、本仕様書では省略しています。
 
   version: 2.0.0
   contact:
@@ -53,7 +65,7 @@ paths:
       tags:
         - system
       summary: バージョン情報取得
-      description: Narou.rb MOD の現在のバージョン情報を取得します。
+      description: Narou.rb MOD の現在のバージョン情報と最新バージョンを取得します。
       operationId: getSystemVersion
       responses:
         '200':
@@ -63,19 +75,22 @@ paths:
               schema:
                 $ref: '#/components/schemas/VersionResponse'
               example:
-                status: success
+                success: true
                 data:
-                  version: "2.1.0"
-                  ruby_version: "3.4.7"
-                meta:
-                  timestamp: "2025-11-11T00:00:00Z"
+                  narou: "3.1.8"
+                  ruby: "3.4.7"
+                  latest: "3.1.8"
+                message: null
+                timestamp: 1731283200
+        '500':
+          $ref: '#/components/responses/InternalError'
 
   /api/v2/system/queue:
     get:
       tags:
         - system
       summary: キュー情報取得
-      description: 実行中およびキューに積まれているタスク情報を取得します。
+      description: WebWorker と Worker のキューに積まれているタスク数を取得します。
       operationId: getSystemQueue
       responses:
         '200':
@@ -85,26 +100,23 @@ paths:
               schema:
                 $ref: '#/components/schemas/QueueResponse'
               example:
-                status: success
+                success: true
                 data:
-                  queue_size: 3
+                  total: 3
+                  web_worker: 2
+                  worker: 1
                   running: true
-                  tasks:
-                    - type: download
-                      novel_id: "n9669bk"
-                      status: running
-                    - type: convert
-                      novel_id: "n4259s"
-                      status: queued
-                meta:
-                  timestamp: "2025-11-11T00:00:00Z"
+                message: null
+                timestamp: 1731283200
+        '500':
+          $ref: '#/components/responses/InternalError'
 
   /api/v2/system/status:
     get:
       tags:
         - system
       summary: システム状態取得
-      description: システムの動作状態を取得します。
+      description: キュー、PushServer、バージョンの状態をまとめて取得します。
       operationId: getSystemStatus
       responses:
         '200':
@@ -114,14 +126,169 @@ paths:
               schema:
                 $ref: '#/components/schemas/StatusResponse'
               example:
-                status: success
+                success: true
                 data:
-                  server_running: true
-                  worker_running: false
-                  database_loaded: true
-                  uptime_seconds: 3600
-                meta:
-                  timestamp: "2025-11-11T00:00:00Z"
+                  queue:
+                    total: 0
+                    web_worker: 0
+                    worker: 0
+                    running: false
+                  push_server:
+                    running: true
+                    port: 5679
+                  version:
+                    narou: "3.1.8"
+                    ruby: "3.4.7"
+                message: null
+                timestamp: 1731283200
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/v2/cancel:
+    post:
+      tags:
+        - system
+      summary: 全タスクキャンセル
+      description: |
+        WebWorker と Worker のタスクをすべてキャンセルします。
+        変換専用ワーカー（ConvertWorker）のタスクも含めてキャンセルする場合は `/api/v2/cancel/all` を使用してください。
+      operationId: cancelAllTasks
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          cancelled:
+                            type: boolean
+                            example: true
+              example:
+                success: true
+                data:
+                  cancelled: true
+                message: All tasks cancelled
+                timestamp: 1731283200
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/v2/console/clear:
+    post:
+      tags:
+        - system
+      summary: コンソール履歴クリア
+      description: PushServer が保持しているコンソール出力履歴をクリアします。
+      operationId: clearConsole
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          cleared:
+                            type: boolean
+                            example: true
+              example:
+                success: true
+                data:
+                  cleared: true
+                message: Console history cleared
+                timestamp: 1731283200
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          description: PushServer が起動していない
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: PUSH_SERVER_NOT_AVAILABLE
+                  message: PushServer is not running
+                timestamp: 1731283200
+
+  /api/v2/server/stop:
+    post:
+      tags:
+        - system
+      summary: サーバー停止
+      description: |
+        レスポンスを返した後にワーカー、PushServer、フロントエンドプロセスを停止し、
+        サーバープロセスを終了コード 0 で終了します。
+      operationId: stopServer
+      responses:
+        '200':
+          description: 停止処理を開始
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          stopping:
+                            type: boolean
+                            example: true
+              example:
+                success: true
+                data:
+                  stopping: true
+                message: Server is stopping...
+                timestamp: 1731283200
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/v2/server/restart:
+    post:
+      tags:
+        - system
+      summary: サーバー再起動
+      description: |
+        レスポンスを返した後にワーカー、PushServer、フロントエンドプロセスを停止し、
+        再起動要求の終了コードでサーバープロセスを終了します（外部ループが再起動します）。
+      operationId: restartServer
+      responses:
+        '200':
+          description: 再起動処理を開始
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          restarting:
+                            type: boolean
+                            example: true
+              example:
+                success: true
+                data:
+                  restarting: true
+                message: Server is restarting...
+                timestamp: 1731283200
+        '500':
+          $ref: '#/components/responses/InternalError'
 
   # ========================================
   # Tasks API
@@ -133,50 +300,31 @@ paths:
         - tasks
       summary: タスク一覧取得
       description: |
-        サーバーで管理されているタスクの一覧を取得します。
-        ステータスでフィルタリング可能。
+        WebWorker と ConvertWorker で管理されているタスクの一覧を、作成日時の新しい順で取得します。
+        サーバー側ではフィルタリングせず全件を返します。
       operationId: getTasks
-      parameters:
-        - name: status
-          in: query
-          description: タスクステータスでフィルタ
-          schema:
-            type: string
-            enum: [queued, running, paused, completed, failed, canceled]
-        - name: limit
-          in: query
-          description: 取得する最大件数
-          schema:
-            type: integer
-            minimum: 1
-            maximum: 1000
       responses:
         '200':
           description: 成功
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  status:
-                    type: string
-                    example: success
-                  data:
-                    type: object
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
                     properties:
-                      tasks:
-                        type: array
-                        items:
-                          $ref: '#/components/schemas/Task'
-                      count:
-                        type: integer
-                        example: 5
+                      data:
+                        type: object
+                        properties:
+                          tasks:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/Task'
+                          count:
+                            type: integer
+                            example: 5
         '500':
-          description: サーバーエラー
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/InternalError'
 
   /api/v2/tasks/summary:
     get:
@@ -192,19 +340,14 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  status:
-                    type: string
-                    example: success
-                  data:
-                    $ref: '#/components/schemas/TaskSummary'
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/TaskSummary'
         '500':
-          description: サーバーエラー
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/InternalError'
 
   /api/v2/tasks/{id}:
     get:
@@ -214,38 +357,33 @@ paths:
       description: 特定のタスクの詳細情報を取得します。
       operationId: getTask
       parameters:
-        - name: id
-          in: path
-          required: true
-          description: タスクID
-          schema:
-            type: string
-            format: uuid
+        - $ref: '#/components/parameters/TaskId'
       responses:
         '200':
           description: 成功
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  status:
-                    type: string
-                    example: success
-                  data:
-                    $ref: '#/components/schemas/Task'
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Task'
         '404':
           description: タスクが見つからない
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: TASK_NOT_FOUND
+                  message: Task 550e8400-e29b-41d4-a716-446655440000 not found
+                timestamp: 1731283200
         '500':
-          description: サーバーエラー
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/InternalError'
 
   /api/v2/tasks/{id}/cancel:
     post:
@@ -255,132 +393,63 @@ paths:
       description: 実行中またはキュー待ちのタスクをキャンセルします。
       operationId: cancelTask
       parameters:
-        - name: id
-          in: path
-          required: true
-          description: タスクID
-          schema:
-            type: string
-            format: uuid
+        - $ref: '#/components/parameters/TaskId'
       responses:
         '200':
           description: 成功
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  status:
-                    type: string
-                    example: success
-                  data:
-                    type: object
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
                     properties:
-                      message:
-                        type: string
-                        example: Task canceled
+                      data:
+                        type: object
+                        properties:
+                          message:
+                            type: string
+                            description: キャンセル結果メッセージ
         '400':
           description: タスクをキャンセルできない
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: TASK_CANCEL_ERROR
+                  message: Task not found
+                timestamp: 1731283200
         '500':
-          description: サーバーエラー
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/InternalError'
 
-  /api/v2/tasks/{id}/pause:
+  /api/v2/cancel/all:
     post:
       tags:
         - tasks
-      summary: タスクを一時停止
-      description: 実行中またはキュー待ちのタスクを一時停止します。
-      operationId: pauseTask
-      parameters:
-        - name: id
-          in: path
-          required: true
-          description: タスクID
-          schema:
-            type: string
-            format: uuid
+      summary: 全タスクキャンセル（変換ワーカー含む）
+      description: WebWorker、ConvertWorker、Worker のタスクをすべてキャンセルします。
+      operationId: cancelAllTasksIncludingConvert
       responses:
         '200':
           description: 成功
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  status:
-                    type: string
-                    example: success
-                  data:
-                    type: object
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
                     properties:
-                      message:
-                        type: string
-                        example: Task paused
-        '400':
-          description: タスクを一時停止できない
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                      data:
+                        type: object
+                        properties:
+                          message:
+                            type: string
+                            example: All tasks canceled
         '500':
-          description: サーバーエラー
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
-  /api/v2/tasks/{id}/resume:
-    post:
-      tags:
-        - tasks
-      summary: タスクを再開
-      description: 一時停止中のタスクを再開します。
-      operationId: resumeTask
-      parameters:
-        - name: id
-          in: path
-          required: true
-          description: タスクID
-          schema:
-            type: string
-            format: uuid
-      responses:
-        '200':
-          description: 成功
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  status:
-                    type: string
-                    example: success
-                  data:
-                    type: object
-                    properties:
-                      message:
-                        type: string
-                        example: Task resumed
-        '400':
-          description: タスクを再開できない
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
-          description: サーバーエラー
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/InternalError'
 
   # ========================================
   # Novels API
@@ -404,19 +473,19 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/NovelsListResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
         '503':
-          description: データベース準備中
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/ServiceUnavailable'
 
   /api/v2/novels/{id}:
     get:
       tags:
         - novels
       summary: 単一小説取得
-      description: 指定されたIDの小説情報を取得します。
+      description: |
+        指定されたIDの小説情報を取得します。
+        データベースのレコードに加え、`site_top_url`、`status`、`download_date`、`convert_date` などを付与して返します。
       operationId: getNovelById
       parameters:
         - $ref: '#/components/parameters/NovelId'
@@ -452,10 +521,10 @@ paths:
                 format: binary
           headers:
             Content-Disposition:
-              description: ダウンロードファイル名
+              description: ダウンロードファイル名（"[著者名] タイトル.拡張子" を RFC 5987 形式でエンコード）
               schema:
                 type: string
-                example: 'attachment; filename="novel.epub"'
+                example: "attachment; filename*=UTF-8''%5B%E8%91%97%E8%80%85%5D%20title.epub"
         '404':
           description: 小説が見つからない、または EPUB ファイルが存在しない
           content:
@@ -470,7 +539,7 @@ paths:
                     error:
                       code: NOT_FOUND
                       message: "Novel ID 123 not found"
-                    timestamp: "2025-11-18T00:00:00Z"
+                    timestamp: 1731888000
                 epubNotFound:
                   summary: EPUB ファイルが見つからない
                   value:
@@ -478,7 +547,76 @@ paths:
                     error:
                       code: EPUB_NOT_FOUND
                       message: "EPUB file not found. Please convert the novel first."
-                    timestamp: "2025-11-18T00:00:00Z"
+                    timestamp: 1731888000
+
+  /api/v2/novels/{id}/story:
+    get:
+      tags:
+        - novels
+      summary: あらすじ取得
+      description: |
+        指定された小説の目次データ（toc.yaml）からタイトルとあらすじを取得します。
+        あらすじは改行を `<br>` に変換した HTML 文字列で返します。
+      operationId: getNovelStory
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: 小説ID（ダウンロード対象として解釈できる値）
+          schema:
+            type: string
+          example: "1"
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          title:
+                            type: string
+                            description: 小説タイトル
+                          story:
+                            type: string
+                            description: あらすじ（改行を `<br>` に変換した HTML）
+        '404':
+          description: |
+            目次データ（toc.yaml）が空で、解析結果が null になった場合。
+            未登録の小説IDはこのステータスにならず、現状は 500 になります（500 の説明を参照）。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: NOT_FOUND
+                  message: 対象の小説が見つかりません
+                timestamp: 1731283200
+        '500':
+          description: |
+            サーバーエラー。未登録の小説ID（または保存フォルダが消えた小説）を指定した場合も、現状は 500 になります
+            （unknown ID currently returns 500）。保存フォルダを解決できないと `Downloader.get_toc_data` の `File.join(nil, ...)` が
+            `TypeError` を送出し、`INTERNAL_ERROR` として返されます。保存フォルダが消えていた場合は、そのデータベースのインデックスも削除されます。
+            toc.yaml が読めない場合も同じく 500 です。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: INTERNAL_ERROR
+                  message: no implicit conversion of nil into String
+                timestamp: 1731283200
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
 
   /api/v2/novels/download:
     post:
@@ -487,10 +625,11 @@ paths:
       summary: 小説ダウンロード
       description: |
         指定された小説をダウンロードします。
-        WebWorker を通じて非同期で実行されます。
+        対象ごとにタスクを作成し、WebWorker を通じて非同期で実行されます。
 
         `convert_after_download` オプションを `true` に設定すると、
-        ダウンロード完了後に自動的に EPUB 変換が実行されます。
+        既に登録済みの小説IDを指定した場合に限り、ダウンロード完了後に EPUB 変換タスクが追加されます。
+        `tags` を指定すると、ダウンロード完了後にタグを付与します。
       operationId: downloadNovels
       requestBody:
         required: true
@@ -504,30 +643,90 @@ paths:
                 targets:
                   type: array
                   items:
-                    type: string
-                  description: ダウンロード対象（Nコード、URL、IDなど）
+                    oneOf:
+                      - type: string
+                      - type: integer
+                  description: ダウンロード対象（Nコード、URL、小説IDなど）
                   example: ["n9669bk", "https://ncode.syosetu.com/n4259s/"]
                 force:
                   type: boolean
-                  description: 強制ダウンロード
+                  description: 強制ダウンロード（download --force 相当）
                   default: false
                 convert_after_download:
                   type: boolean
                   description: ダウンロード完了後に自動変換を実行
                   default: false
-                mail:
-                  type: boolean
-                  description: ダウンロード後にメール送信
-                  default: false
+                tags:
+                  description: ダウンロード後に付与するタグ（配列、またはカンマ・読点・空白区切りの文字列）
+                  oneOf:
+                    - type: array
+                      items:
+                        type: string
+                    - type: string
       responses:
-        '202':
+        '200':
           description: 受付成功（非同期処理開始）
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AsyncTaskResponse'
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          targets:
+                            type: array
+                            items:
+                              oneOf:
+                                - type: string
+                                - type: integer
+                          force:
+                            type: boolean
+                          convert_after_download:
+                            type: boolean
+                          task_ids:
+                            type: array
+                            items:
+                              type: string
+                              format: uuid
+                            description: 作成されたタスクID
+              example:
+                success: true
+                data:
+                  targets: ["n9669bk"]
+                  force: false
+                  convert_after_download: false
+                  task_ids:
+                    - "550e8400-e29b-41d4-a716-446655440000"
+                message: Download started
+                timestamp: 1731283200
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: リクエストパラメータ不正
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                missingTargets:
+                  summary: targets 未指定・空
+                  value:
+                    success: false
+                    error:
+                      code: INVALID_PARAMS
+                      message: targets parameter is required
+                    timestamp: 1731283200
+                invalidJson:
+                  summary: JSON 解析エラー
+                  value:
+                    success: false
+                    error:
+                      code: INVALID_JSON
+                      message: "Invalid JSON: unexpected token"
+                    timestamp: 1731283200
+        '500':
+          $ref: '#/components/responses/InternalError'
 
   /api/v2/novels/convert:
     post:
@@ -536,32 +735,61 @@ paths:
       summary: 小説変換
       description: |
         指定された小説を EPUB 等に変換します。
-        WebWorker を通じて非同期で実行されます。
+        変換専用ワーカー（ConvertWorker）を通じて非同期で実行されます。
+        存在しない小説IDは `not_found` に含めて返し、残りの小説の変換は開始します。
       operationId: convertNovels
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required:
-                - ids
-              properties:
-                ids:
-                  type: array
-                  items:
-                    type: string
-                  description: 変換対象の小説ID
-                  example: ["1", "2", "3"]
-                no_open:
-                  type: boolean
-                  description: 変換後にファイルを開かない
-                  default: true
+              $ref: '#/components/schemas/NovelIdsRequest'
       responses:
-        '202':
-          $ref: '#/components/responses/AsyncTaskAccepted'
+        '200':
+          description: 受付成功（非同期処理開始）
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          ids:
+                            type: array
+                            items:
+                              type: string
+                            description: 変換を開始した小説ID
+                          not_found:
+                            type: array
+                            items:
+                              type: string
+                            description: 見つからなかった小説ID（存在する場合のみ）
+                          count:
+                            type: integer
+                            description: 作成されたタスク数
+                          task_ids:
+                            type: array
+                            items:
+                              type: string
+                              format: uuid
+                            description: 作成されたタスクID
+              example:
+                success: true
+                data:
+                  ids: ["1", "2"]
+                  count: 2
+                  task_ids:
+                    - "550e8400-e29b-41d4-a716-446655440000"
+                    - "550e8400-e29b-41d4-a716-446655440001"
+                message: Convert started
+                timestamp: 1731283200
         '400':
           $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
 
   /api/v2/novels/update:
     post:
@@ -639,43 +867,41 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                    example: true
-                  data:
-                    type: object
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
                     properties:
-                      ids:
-                        type: array
-                        items:
-                          type: integer
-                        description: 更新対象の小説ID
-                      force_redownload:
-                        type: boolean
-                        description: 全話強制再ダウンロードか
-                      include_frozen:
-                        type: boolean
-                        description: 凍結小説を含むか
-                      convert_after_update:
-                        type: boolean
-                        description: 更新後に変換を実行するか
-                      skip_unchanged:
-                        type: boolean
-                        description: 更新なしの小説の変換をスキップするか
-                      task_ids:
-                        type: array
-                        items:
-                          type: string
-                          format: uuid
-                        description: 作成されたタスクID
-                  message:
-                    type: string
-                    example: "Update started"
-                  timestamp:
-                    type: integer
-                    description: タイムスタンプ（Unix時間）
+                      data:
+                        type: object
+                        properties:
+                          ids:
+                            type: array
+                            items:
+                              type: integer
+                            description: 更新対象の小説ID
+                          force_redownload:
+                            type: boolean
+                            description: 全話強制再ダウンロードか
+                          include_frozen:
+                            type: boolean
+                            description: 凍結小説を含むか
+                          convert_after_update:
+                            type: boolean
+                            description: 更新後に変換を実行するか
+                          skip_unchanged:
+                            type: boolean
+                            description: 更新なしの小説の変換をスキップするか
+                          task_ids:
+                            type: array
+                            items:
+                              type: string
+                              format: uuid
+                            description: 作成されたタスクID
+                          skipped_ids:
+                            type: array
+                            items:
+                              type: integer
+                            description: 見つからなかった小説ID（存在する場合のみ）
               example:
                 success: true
                 data:
@@ -683,6 +909,7 @@ paths:
                   force_redownload: false
                   include_frozen: false
                   convert_after_update: true
+                  skip_unchanged: true
                   task_ids:
                     - "550e8400-e29b-41d4-a716-446655440000"
                     - "550e8400-e29b-41d4-a716-446655440001"
@@ -696,21 +923,15 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
               examples:
                 missingIds:
-                  summary: IDs パラメータがない
+                  summary: IDs パラメータがない、または空配列
                   value:
                     success: false
                     error:
                       code: INVALID_PARAMS
                       message: "ids parameter is required"
-                    timestamp: "2025-11-28T00:00:00Z"
-                emptyIds:
-                  summary: IDs が空配列
-                  value:
-                    success: false
-                    error:
-                      code: INVALID_PARAMS
-                      message: "ids parameter is required"
-                    timestamp: "2025-11-28T00:00:00Z"
+                    timestamp: 1732752000
+        '500':
+          $ref: '#/components/responses/InternalError'
 
   /api/v2/novels/freeze:
     post:
@@ -720,6 +941,7 @@ paths:
       description: |
         指定された小説の凍結状態を変更します。
         凍結された小説は自動更新の対象外になります。
+        処理は WebWorker を通じて非同期で実行されます。
 
         - `freeze: true` - 凍結する
         - `freeze: false` - 凍結を解除する
@@ -735,11 +957,7 @@ paths:
                 - ids
               properties:
                 ids:
-                  type: array
-                  items:
-                    type: string
-                  description: 対象の小説ID
-                  example: ["1", "2"]
+                  $ref: '#/components/schemas/NovelIdList'
                 freeze:
                   type: boolean
                   description: |
@@ -753,7 +971,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessResponse'
+                $ref: '#/components/schemas/NovelIdsCountResponse'
               example:
                 success: true
                 data:
@@ -763,6 +981,8 @@ paths:
                 timestamp: 1699999999
         '400':
           $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
 
   /api/v2/novels/remove:
     post:
@@ -772,6 +992,7 @@ paths:
       description: |
         指定された小説をデータベースから削除します。
         オプションで生成済みファイルも削除できます。
+        処理は WebWorker を通じて非同期で実行されます。
       operationId: removeNovels
       requestBody:
         required: true
@@ -783,24 +1004,38 @@ paths:
                 - ids
               properties:
                 ids:
-                  type: array
-                  items:
-                    type: string
-                  description: 削除対象の小説ID
-                  example: ["1", "2"]
-                with_files:
+                  $ref: '#/components/schemas/NovelIdList'
+                with_file:
                   type: boolean
-                  description: 生成済みファイルも削除
+                  description: 生成済みファイルも削除（remove --with-file 相当）
                   default: false
       responses:
         '200':
-          description: 成功
+          description: 受付成功（非同期処理開始）
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessResponse'
+                allOf:
+                  - $ref: '#/components/schemas/NovelIdsCountResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          with_file:
+                            type: boolean
+              example:
+                success: true
+                data:
+                  ids: ["1", "2"]
+                  count: 2
+                  with_file: false
+                message: Remove started
+                timestamp: 1731283200
         '400':
           $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
 
   # ========================================
   # Tags API
@@ -811,7 +1046,7 @@ paths:
       tags:
         - tags
       summary: タグ一覧取得
-      description: 登録されているタグの一覧を取得します。
+      description: 登録されているタグの一覧をタグ名順で取得します。
       operationId: getTags
       responses:
         '200':
@@ -820,28 +1055,70 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/TagsListResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/v2/tags/index:
+    get:
+      tags:
+        - tags
+      summary: タグインデックス取得
+      description: |
+        タグ名から小説IDリストへのマップを取得します（フロントエンドでの高速フィルタリング用）。
+        データベースが更新されるまでサーバー側でキャッシュされます。
+      operationId: getTagIndex
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          tag_index:
+                            type: object
+                            additionalProperties:
+                              type: array
+                              items:
+                                type: integer
+                            description: タグ名 → 小説IDの配列（昇順）
+                          total_tags:
+                            type: integer
+                            description: タグ数
+                          generated_at:
+                            type: integer
+                            description: インデックス生成時刻（Unix時間）
+              example:
+                success: true
+                data:
+                  tag_index:
+                    end: [1, 5]
+                    favorite: [2]
+                  total_tags: 2
+                  generated_at: 1731283200
+                message: null
+                timestamp: 1731283200
+        '500':
+          $ref: '#/components/responses/InternalError'
 
   /api/v2/tags/info:
     post:
       tags:
         - tags
       summary: タグ情報取得
-      description: 指定された小説のタグ情報を取得します。
+      description: 指定された小説群における各タグの付与状況を取得します。
       operationId: getTagsInfo
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required:
-                - ids
-              properties:
-                ids:
-                  type: array
-                  items:
-                    type: string
-                  description: 対象の小説ID
+              $ref: '#/components/schemas/NovelIdsRequest'
       responses:
         '200':
           description: 成功
@@ -849,6 +1126,10 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/TagInfoResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
 
   /api/v2/tags/edit:
     post:
@@ -869,9 +1150,94 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessResponse'
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          added:
+                            type: array
+                            items:
+                              type: string
+                            description: 追加されたタグ
+                          deleted:
+                            type: array
+                            items:
+                              type: string
+                            description: 削除されたタグ
+                          novel_count:
+                            type: integer
+                            description: 対象小説数
         '400':
           $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/v2/tags/add:
+    post:
+      tags:
+        - tags
+      summary: タグ追加
+      description: 指定された小説にタグを追加します。
+      operationId: addTags
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TagChangeRequest'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TagChangeResponse'
+              example:
+                success: true
+                data:
+                  tags: ["favorite"]
+                  novel_count: 2
+                message: Tags added successfully
+                timestamp: 1731283200
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/v2/tags/delete:
+    post:
+      tags:
+        - tags
+      summary: タグ削除
+      description: 指定された小説からタグを削除します。
+      operationId: deleteTags
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TagChangeRequest'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TagChangeResponse'
+              example:
+                success: true
+                data:
+                  tags: ["favorite"]
+                  novel_count: 2
+                message: Tags deleted successfully
+                timestamp: 1731283200
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
 
   /api/v2/tags/color:
     post:
@@ -887,23 +1253,68 @@ paths:
             schema:
               type: object
               required:
-                - tag
-                - color
+                - colors
               properties:
-                tag:
-                  type: string
-                  description: タグ名
-                color:
-                  type: string
-                  description: 色クラス名
-                  example: "label-primary"
+                colors:
+                  type: object
+                  description: |
+                    タグ名 → 色名 のマップ。色は `green`, `yellow`, `blue`, `magenta`, `cyan`, `red`, `white` のいずれか。
+                    未知の色が指定されたエントリはエラーにならず黙って無視されますが、
+                    レスポンスの `data.colors` にはリクエストの内容がそのまま返されます。
+                  additionalProperties:
+                    $ref: '#/components/schemas/TagColor'
+                  example:
+                    favorite: green
       responses:
         '200':
           description: 成功
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessResponse'
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          colors:
+                            type: object
+                            additionalProperties:
+                              type: string
+                            description: リクエストの `colors` をそのまま返します（無視された未知の色も含む）
+              example:
+                success: true
+                data:
+                  colors:
+                    favorite: green
+                message: Tag colors updated successfully
+                timestamp: 1731283200
+        '400':
+          description: リクエストパラメータ不正（`colors` が空でないオブジェクトでない）、または JSON 解析エラー
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                colorsRequired:
+                  summary: colors がない・空・オブジェクトでない
+                  value:
+                    success: false
+                    error:
+                      code: INVALID_PARAMS
+                      message: Colors hash is required
+                    timestamp: 1731283200
+                invalidJson:
+                  summary: JSON 解析エラー
+                  value:
+                    success: false
+                    error:
+                      code: INVALID_JSON
+                      message: "Invalid JSON: unexpected token"
+                    timestamp: 1731283200
+        '500':
+          $ref: '#/components/responses/InternalError'
 
   # ========================================
   # Settings API
@@ -914,7 +1325,7 @@ paths:
       tags:
         - settings
       summary: 設定一覧取得
-      description: アプリケーションの設定一覧を取得します。
+      description: ローカル設定・グローバル設定の値と、設定変数のメタ情報を取得します。
       operationId: getSettings
       responses:
         '200':
@@ -923,12 +1334,16 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SettingsResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
 
     put:
       tags:
         - settings
-      summary: 設定一括更新
-      description: 設定を一括で更新します（完全置換）。
+      summary: 設定更新
+      description: |
+        指定された設定値を更新します。空文字または null を指定した設定は削除されます。
+        指定されなかった設定は変更されません（PATCH と同じ動作です）。
       operationId: updateSettings
       requestBody:
         required: true
@@ -938,42 +1353,38 @@ paths:
               $ref: '#/components/schemas/SettingsUpdateRequest'
       responses:
         '200':
-          description: 成功
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SuccessResponse'
-        '422':
-          $ref: '#/components/responses/ValidationError'
+          $ref: '#/components/responses/SettingsUpdated'
+        '400':
+          $ref: '#/components/responses/SettingsUpdateError'
+        '500':
+          $ref: '#/components/responses/InternalError'
 
     patch:
       tags:
         - settings
       summary: 設定部分更新
-      description: 設定を部分的に更新します。
+      description: 設定を部分的に更新します（PUT と同じ動作です）。
       operationId: patchSettings
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/SettingsPatchRequest'
+              $ref: '#/components/schemas/SettingsUpdateRequest'
       responses:
         '200':
-          description: 成功
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SuccessResponse'
-        '422':
-          $ref: '#/components/responses/ValidationError'
+          $ref: '#/components/responses/SettingsUpdated'
+        '400':
+          $ref: '#/components/responses/SettingsUpdateError'
+        '500':
+          $ref: '#/components/responses/InternalError'
 
   /api/v2/settings/variables:
     get:
       tags:
         - settings
       summary: 設定変数一覧取得
-      description: 設定可能な変数の一覧とメタデータを取得します。
+      description: 設定可能な変数の定義と、設定画面のタブ情報を取得します。
       operationId: getSettingsVariables
       responses:
         '200':
@@ -982,6 +1393,249 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SettingsVariablesResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/v2/settings/parser:
+    get:
+      tags:
+        - settings
+      summary: パーサー設定取得
+      description: |
+        パーサーのグローバル設定、対応ドメイン一覧、ユーザー定義のドメイン別設定、
+        セレクタ履歴、変更ログを取得します。
+      operationId: getParserSettings
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          global_config:
+                            type: object
+                            additionalProperties: true
+                            description: パーサーのグローバル設定
+                          domains:
+                            type: array
+                            items:
+                              type: string
+                            description: preset/parsers/ に定義されているドメイン一覧（昇順）
+                          user_configs:
+                            type: object
+                            additionalProperties: true
+                            description: .narou/parsers/ に保存されたドメイン別設定（ドメイン → 設定内容）
+                          selector_histories:
+                            type: object
+                            additionalProperties: true
+                            description: ドメインごとのセレクタ履歴（履歴があるドメインのみ）
+                          change_log:
+                            type: object
+                            additionalProperties: true
+                            description: ドメインごとの変更ログ
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    post:
+      tags:
+        - settings
+      summary: パーサー設定更新
+      description: |
+        パーサー設定を更新します。指定された項目のみ更新されます。
+        - `default_engine`: グローバルのデフォルトエンジン
+        - `novel_engines`: 小説ID → エンジン名 のマップ
+        - `domain_config`: ドメイン別パーサー設定（`domain` と `config` の両方が必要）
+      operationId: updateParserSettings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                default_engine:
+                  type: string
+                  description: デフォルトのパーサーエンジン
+                novel_engines:
+                  type: object
+                  additionalProperties:
+                    type: string
+                  description: 小説ID → パーサーエンジン のマップ
+                domain_config:
+                  type: object
+                  properties:
+                    domain:
+                      type: string
+                      description: 対象ドメイン
+                    config:
+                      type: object
+                      additionalProperties: true
+                      description: パーサー設定内容
+                    engine:
+                      type: string
+                      description: パーサーエンジン
+                      default: nokogiri
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          updated:
+                            type: array
+                            items:
+                              type: string
+                            description: 更新された項目（default_engine, novel_<ID>, domain_<ドメイン>）
+              example:
+                success: true
+                data:
+                  updated: ["default_engine", "novel_1"]
+                message: Parser settings updated successfully
+                timestamp: 1731283200
+        '400':
+          description: リクエストボディが JSON として解析できない
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error:
+                  code: INVALID_JSON
+                  message: "Invalid JSON: unexpected token"
+                timestamp: 1731283200
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/v2/settings/parser/diagnostics/{domain}:
+    get:
+      tags:
+        - settings
+      summary: パーサー診断情報取得
+      description: |
+        指定ドメインのパーサー診断情報を取得します。
+        `engine` が `nokogiri` の場合はセレクタ履歴と適用範囲、それ以外の場合はレガシーパーサーのバージョン履歴を返します。
+        いずれの場合も、目次URLにドメインを含む小説の一覧と変更ログを含みます。
+      operationId: getParserDiagnostics
+      parameters:
+        - name: domain
+          in: path
+          required: true
+          description: 対象ドメイン
+          schema:
+            type: string
+          example: ncode.syosetu.com
+        - name: engine
+          in: query
+          required: false
+          description: パーサーエンジン
+          schema:
+            type: string
+            default: nokogiri
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          domain:
+                            type: string
+                          engine:
+                            type: string
+                          selector_history:
+                            type: object
+                            additionalProperties: true
+                            description: セレクタ履歴（engine が nokogiri の場合）
+                          selector_coverage:
+                            type: object
+                            additionalProperties:
+                              type: array
+                              items:
+                                type: object
+                                properties:
+                                  selector:
+                                    type: string
+                                  first_success: {}
+                                  last_success: {}
+                                  success_count:
+                                    type: integer
+                                  detected_change: {}
+                                  replaced_selector: {}
+                            description: セレクタキーごとの適用範囲（engine が nokogiri の場合）
+                          version_history:
+                            type: array
+                            items: {}
+                            description: レガシーパーサーのバージョン履歴（engine が nokogiri 以外の場合）
+                          version_details:
+                            type: object
+                            additionalProperties:
+                              type: object
+                              properties:
+                                version: {}
+                                name:
+                                  type: string
+                                patterns:
+                                  type: object
+                                  properties:
+                                    body_pattern:
+                                      type: string
+                                      nullable: true
+                                    introduction_pattern:
+                                      type: string
+                                      nullable: true
+                                    postscript_pattern:
+                                      type: string
+                                      nullable: true
+                            description: バージョンごとのパーサー定義（engine が nokogiri 以外の場合）
+                          novels:
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                id:
+                                  type: integer
+                                title:
+                                  type: string
+                                last_update:
+                                  type: integer
+                                  nullable: true
+                                  description: 最終更新日時（Unix時間）
+                                parser_engine:
+                                  type: string
+                                  nullable: true
+                            description: 目次URLにドメインを含む小説
+                          change_log:
+                            oneOf:
+                              - type: array
+                                items: {}
+                              - type: object
+                                maxProperties: 0
+                            description: |
+                              このドメインの変更ログ（配列。該当ドメインのエントリがなければ空配列）。
+                              変更ログファイル（.narou/parsers/change_log.yaml）が存在しない場合や
+                              読み込みに失敗した場合は空オブジェクト `{}` を返します。
+        '500':
+          $ref: '#/components/responses/InternalError'
 
   /api/v2/settings/export:
     get:
@@ -992,10 +1646,8 @@ paths:
         アプリケーションの設定ファイルをZIP形式でエクスポートします。
 
         エクスポートされるファイル:
-        - `.narou/` ディレクトリ内の設定ファイル（local_setting.yaml, replace.txt, parsers/ など）
-        - `.narousetting/` ディレクトリ内のグローバル設定ファイル
-
-        対象ファイル拡張子: .yaml, .yml, .json, .txt
+        - `.narou/*.yaml`、`.narou/parsers/*.yaml`、`.narou/replace.txt`
+        - `.narousetting/*.yaml`、`.narousetting/replace.txt`
       operationId: exportSettings
       responses:
         '200':
@@ -1021,6 +1673,9 @@ paths:
                 error:
                   code: NOT_INITIALIZED
                   message: Narou is not initialized
+                timestamp: 1732708800
+        '500':
+          $ref: '#/components/responses/InternalError'
 
   /api/v2/settings/import:
     post:
@@ -1035,9 +1690,8 @@ paths:
         - `.narousetting/` プレフィックスを持つファイル → グローバル設定ディレクトリに展開
 
         セキュリティ制限:
-        - 許可された拡張子のみ（.yaml, .yml, .json, .txt）
-        - パストラバーサル攻撃は自動的にブロックされます
-        - 許可されていないファイルはスキップされます
+        - 許可された拡張子のみ（.yaml, .txt）。それ以外や上記以外のプレフィックスのファイルはスキップされます
+        - `..` を含むパスや絶対パスのエントリは無視されます
       operationId: importSettings
       requestBody:
         required: true
@@ -1062,7 +1716,7 @@ paths:
               example:
                 success: true
                 data:
-                  imported_count: 5
+                  imported_count: 3
                   skipped_count: 1
                   imported_files:
                     - ".narou/local_setting.yaml"
@@ -1070,8 +1724,8 @@ paths:
                     - ".narousetting/global_setting.yaml"
                   skipped_files:
                     - ".narou/script.rb"
-                meta:
-                  timestamp: "2025-11-27T12:00:00Z"
+                message: Settings imported successfully
+                timestamp: 1732708800
         '400':
           description: エラー
           content:
@@ -1086,6 +1740,7 @@ paths:
                     error:
                       code: NO_FILE
                       message: No file uploaded
+                    timestamp: 1732708800
                 not_initialized:
                   summary: Narou未初期化
                   value:
@@ -1093,13 +1748,17 @@ paths:
                     error:
                       code: NOT_INITIALIZED
                       message: Narou is not initialized
+                    timestamp: 1732708800
                 invalid_zip:
                   summary: 無効なZIPファイル
                   value:
                     success: false
                     error:
                       code: INVALID_ZIP
-                      message: Invalid ZIP file
+                      message: "Invalid ZIP file: ..."
+                    timestamp: 1732708800
+        '500':
+          $ref: '#/components/responses/InternalError'
 
   # ========================================
   # Novel Settings API
@@ -1110,7 +1769,7 @@ paths:
       tags:
         - novel-settings
       summary: 小説個別設定取得
-      description: 指定された小説の個別設定を取得します。
+      description: 指定された小説の個別設定（setting.ini）と置換設定（replace.txt）を取得します。
       operationId: getNovelSettings
       parameters:
         - $ref: '#/components/parameters/NovelId'
@@ -1123,12 +1782,16 @@ paths:
                 $ref: '#/components/schemas/NovelSettingsResponse'
         '404':
           $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
 
     put:
       tags:
         - novel-settings
       summary: 小説個別設定更新
-      description: 指定された小説の個別設定を更新します。
+      description: |
+        指定された小説の個別設定を更新します。`settings` に含まれる設定のみ更新されます。
+        `replace_pattern` を指定した場合は置換設定を丸ごと置き換えます。
       operationId: updateNovelSettings
       parameters:
         - $ref: '#/components/parameters/NovelId'
@@ -1144,11 +1807,27 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessResponse'
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          novel_id:
+                            type: integer
+              example:
+                success: true
+                data:
+                  novel_id: 1
+                message: Settings updated successfully
+                timestamp: 1731283200
+        '400':
+          $ref: '#/components/responses/ValidationError'
         '404':
           $ref: '#/components/responses/NotFound'
-        '422':
-          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalError'
 
 # ========================================
 # Components
@@ -1165,31 +1844,29 @@ components:
         type: string
       example: "1"
 
+    TaskId:
+      name: id
+      in: path
+      required: true
+      description: タスクID
+      schema:
+        type: string
+        format: uuid
+
   schemas:
     # Base Response Schemas
     BaseResponse:
       type: object
       required:
-        - status
-        - meta
+        - success
+        - timestamp
       properties:
-        status:
-          type: string
-          enum: [success, error]
-          description: レスポンスステータス
-        meta:
-          type: object
-          required:
-            - timestamp
-          properties:
-            timestamp:
-              type: string
-              format: date-time
-              description: レスポンス生成時刻
-            request_id:
-              type: string
-              format: uuid
-              description: リクエストID（デバッグ用）
+        success:
+          type: boolean
+          description: 処理が成功したかどうか
+        timestamp:
+          type: integer
+          description: レスポンス生成時刻（Unix時間）
 
     SuccessResponse:
       allOf:
@@ -1198,12 +1875,15 @@ components:
           required:
             - data
           properties:
+            success:
+              type: boolean
+              enum: [true]
             data:
-              type: object
-              properties:
-                message:
-                  type: string
-                  description: 成功メッセージ
+              description: レスポンスデータ（エンドポイントごとに異なる）
+            message:
+              type: string
+              nullable: true
+              description: 成功メッセージ
 
     ErrorResponse:
       allOf:
@@ -1212,6 +1892,9 @@ components:
           required:
             - error
           properties:
+            success:
+              type: boolean
+              enum: [false]
             error:
               type: object
               required:
@@ -1226,71 +1909,116 @@ components:
                   description: エラーメッセージ
                 details:
                   type: object
-                  description: エラー詳細
+                  additionalProperties: true
+                  description: エラー詳細（設定名 → エラーメッセージ など）
+
+    # Common Request Schemas
+    NovelIdList:
+      type: array
+      minItems: 1
+      items:
+        oneOf:
+          - type: integer
+          - type: string
+            pattern: '^\d+$'
+      description: 対象の小説ID（整数、または数字のみの文字列）
+      example: ["1", "2"]
+
+    NovelIdsRequest:
+      type: object
+      required:
+        - ids
+      properties:
+        ids:
+          $ref: '#/components/schemas/NovelIdList'
+
+    NovelIdsCountResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                ids:
+                  type: array
+                  items:
+                    type: string
+                  description: 対象の小説ID
+                count:
+                  type: integer
+                  description: 対象件数
 
     # System Schemas
     VersionResponse:
       allOf:
-        - $ref: '#/components/schemas/BaseResponse'
+        - $ref: '#/components/schemas/SuccessResponse'
         - type: object
           properties:
             data:
               type: object
               properties:
-                version:
+                narou:
                   type: string
                   description: Narou.rb MOD バージョン
-                ruby_version:
+                ruby:
                   type: string
                   description: Ruby バージョン
+                latest:
+                  type: string
+                  nullable: true
+                  description: 公開されている最新バージョン
+
+    QueueSize:
+      type: object
+      properties:
+        total:
+          type: integer
+          description: キュー内のタスク総数
+        web_worker:
+          type: integer
+          description: WebWorker のキューサイズ
+        worker:
+          type: integer
+          description: Worker のキューサイズ
+        running:
+          type: boolean
+          description: キューにタスクがあるかどうか
 
     QueueResponse:
       allOf:
-        - $ref: '#/components/schemas/BaseResponse'
+        - $ref: '#/components/schemas/SuccessResponse'
         - type: object
           properties:
             data:
-              type: object
-              properties:
-                queue_size:
-                  type: integer
-                  description: キューサイズ
-                running:
-                  type: boolean
-                  description: 実行中かどうか
-                tasks:
-                  type: array
-                  items:
-                    $ref: '#/components/schemas/Task'
+              $ref: '#/components/schemas/QueueSize'
 
     StatusResponse:
       allOf:
-        - $ref: '#/components/schemas/BaseResponse'
+        - $ref: '#/components/schemas/SuccessResponse'
         - type: object
           properties:
             data:
               type: object
               properties:
-                server_running:
-                  type: boolean
-                worker_running:
-                  type: boolean
-                database_loaded:
-                  type: boolean
-                uptime_seconds:
-                  type: integer
-
-    Task:
-      type: object
-      properties:
-        type:
-          type: string
-          enum: [download, convert, update, remove]
-        novel_id:
-          type: string
-        status:
-          type: string
-          enum: [queued, running, completed, failed]
+                queue:
+                  $ref: '#/components/schemas/QueueSize'
+                push_server:
+                  type: object
+                  properties:
+                    running:
+                      type: boolean
+                    port:
+                      type: integer
+                      nullable: true
+                      description: PushServer のポート（起動中の場合のみ）
+                version:
+                  type: object
+                  properties:
+                    narou:
+                      type: string
+                    ruby:
+                      type: string
 
     # Task Schemas
     Task:
@@ -1306,19 +2034,23 @@ components:
           description: タスクタイプ
         novel_id:
           type: integer
+          nullable: true
           description: 小説ID（該当する場合）
         novel_title:
           type: string
+          nullable: true
           description: 小説タイトル（該当する場合）
         novel_author:
           type: string
+          nullable: true
           description: 小説著者（該当する場合）
         status:
           type: string
-          enum: [queued, running, paused, completed, failed, canceled]
+          enum: [queued, running, completed, failed, canceled]
           description: タスクステータス
         message:
           type: string
+          nullable: true
           description: タスクのメッセージ
         created_at:
           type: string
@@ -1327,14 +2059,12 @@ components:
         started_at:
           type: string
           format: date-time
+          nullable: true
           description: タスク開始日時
-        paused_at:
-          type: string
-          format: date-time
-          description: タスク一時停止日時
         completed_at:
           type: string
           format: date-time
+          nullable: true
           description: タスク完了日時
         elapsed_time:
           type: number
@@ -1342,13 +2072,16 @@ components:
           description: 経過時間（秒）
         error:
           type: object
+          nullable: true
           properties:
             message:
               type: string
             class:
               type: string
+              nullable: true
             backtrace:
               type: array
+              nullable: true
               items:
                 type: string
           description: エラー情報（失敗時）
@@ -1366,10 +2099,11 @@ components:
           description: 進捗率（0-100%）
         total_steps:
           type: integer
+          nullable: true
           description: 総ステップ数
         current_step:
           type: integer
-          description: 現在のステップ数
+          description: 現在のステップ数（初期値 0）
       example:
         id: "550e8400-e29b-41d4-a716-446655440000"
         type: download
@@ -1377,27 +2111,30 @@ components:
         novel_title: "サンプル小説"
         novel_author: "サンプル作者"
         status: running
-        message: "ダウンロード中..."
+        message: "実行中..."
         created_at: "2025-11-18T10:00:00Z"
         started_at: "2025-11-18T10:00:05Z"
         elapsed_time: 15.5
         retry_count: 0
-        max_retries: 3
-        progress: 45.5
-        total_steps: 100
-        current_step: 45
+        max_retries: 0
+        progress: 0.0
+        total_steps: null
+        current_step: 0
 
     TaskSummary:
       type: object
       properties:
         current:
-          $ref: '#/components/schemas/Task'
-          description: 現在実行中のタスク
+          type: object
+          allOf:
+            - $ref: '#/components/schemas/Task'
+          nullable: true
+          description: WebWorker で現在実行中のタスク（待機中は null）
         queued:
           type: array
           items:
             $ref: '#/components/schemas/Task'
-          description: キュー待ちタスク一覧
+          description: WebWorker のキュー待ちタスク一覧
         recent_completed:
           type: array
           items:
@@ -1408,34 +2145,57 @@ components:
           items:
             $ref: '#/components/schemas/Task'
           description: 最近失敗したタスク一覧（最大10件）
+        completed_count:
+          type: integer
+          description: 完了タスク数
+        failed_count:
+          type: integer
+          description: 失敗タスク数
+        convert_current:
+          type: object
+          allOf:
+            - $ref: '#/components/schemas/Task'
+          nullable: true
+          description: ConvertWorker で現在実行中のタスク（待機中は null）
+        convert_queued:
+          type: array
+          items:
+            $ref: '#/components/schemas/Task'
+          description: ConvertWorker のキュー待ちタスク一覧
 
     # Novel Schemas
     Novel:
       type: object
+      additionalProperties: true
+      description: |
+        小説データ。一覧（`GET /api/v2/novels`）と詳細（`GET /api/v2/novels/{id}`）で返るフィールドが異なります。
+        - 一覧: `lib/web/processors/novel_list.rb` の `build_novel_item` で整形された項目を返します。
+          日時系フィールドは Unix 時間（整数）です。`author` は HTML エスケープ済みで、生の値は `author_plain` にあります。
+        - 詳細: データベースのレコード（`database.yaml`）をそのまま返すため、ここに記載のないフィールドも含まれます。
+          日時系フィールドは Ruby の `Time#to_s` 形式の文字列（例 `"2026-09-30 16:04:42 +0900"`）です。
       properties:
         id:
-          type: string
+          type: integer
           description: 小説ID
-        ncode:
-          type: string
-          description: Nコード
         title:
           type: string
           description: タイトル
         author:
           type: string
-          description: 作者名
+          description: 作者名（一覧では HTML エスケープ済み。生の値は `author_plain`）
         author_url:
           type: string
           format: uri
+          nullable: true
           description: 作者ページのURL（存在する場合）
-        site_name:
+        sitename:
           type: string
           description: 小説掲載サイト名
         site_top_url:
           type: string
           format: uri
-          description: 小説掲載サイトのトップページURL
+          nullable: true
+          description: 小説掲載サイトのトップページURL（toc_url から生成）
         toc_url:
           type: string
           format: uri
@@ -1445,21 +2205,106 @@ components:
           items:
             type: string
           description: タグ一覧
+        status:
+          type: string
+          description: 状態文字列（例 "凍結, 完結"）
+        last_update:
+          oneOf:
+            - type: integer
+            - type: string
+          description: 最終更新日時（一覧では Unix 時間、詳細では `Time#to_s` 形式の文字列）
+        new_arrivals_date:
+          oneOf:
+            - type: integer
+              nullable: true
+            - type: string
+              nullable: true
+          description: 新着日時（一覧では Unix 時間、詳細では `Time#to_s` 形式の文字列。未設定なら null）
+        general_lastup:
+          oneOf:
+            - type: integer
+              nullable: true
+            - type: string
+              nullable: true
+          description: 最新話掲載日時（一覧では Unix 時間、詳細では `Time#to_s` 形式の文字列。未設定なら null）
+        general_all_no:
+          type: integer
+          nullable: true
+          description: 掲載話数
+        last_check_date:
+          oneOf:
+            - type: integer
+              nullable: true
+            - type: string
+              nullable: true
+          description: 最終確認日時（一覧では Unix 時間、詳細では `Time#to_s` 形式の文字列。未確認なら null）
+        promo_tags:
+          type: array
+          items:
+            type: string
+          description: 除去されたプロモタグ（一覧では常に配列。詳細ではデータベースに記録がある場合のみ含まれる）
+        promo_tags_title:
+          type: array
+          items:
+            type: string
+          description: タイトルから除去されたプロモタグ（一覧では常に配列。詳細ではデータベースに記録がある場合のみ含まれる）
+        promo_tags_author:
+          type: array
+          items:
+            type: string
+          description: 作者名から除去されたプロモタグ（一覧では常に配列。詳細ではデータベースに記録がある場合のみ含まれる）
+        length:
+          type: integer
+          nullable: true
+          description: 文字数
+        novel_type:
+          oneOf:
+            - type: string
+              enum: ["連載", "短編"]
+            - type: integer
+          description: 小説種別（一覧では "連載" / "短編"、詳細ではデータベースの値 1=連載 / 2=短編）
+        # --- 一覧のみ ---
+        title_plain:
+          type: string
+          description: "[一覧のみ] タイトル（title と同値）"
+        author_plain:
+          type: string
+          description: "[一覧のみ] HTML エスケープ前の作者名"
         frozen:
           type: boolean
-          description: 凍結状態
-        updated_at:
+          description: "[一覧のみ] 凍結されているか（凍結状態は別ファイル管理のため詳細には含まれない。詳細では `status` を参照）"
+        promo_tags_text:
           type: string
-          format: date-time
-          description: 更新日時
-        created_at:
+          description: "[一覧のみ] promo_tags を空白区切りで連結した文字列"
+        actions:
           type: string
-          format: date-time
-          description: 作成日時
+          description: "[一覧のみ] 常に空文字列（アクションボタンはクライアント側で生成）"
+        # --- 詳細のみ（データベースのレコード由来） ---
+        file_title:
+          type: string
+          description: "[詳細のみ] 保存ディレクトリ名に使われるタイトル"
+        end:
+          type: boolean
+          nullable: true
+          description: "[詳細のみ] 完結しているか"
+        use_subdirectory:
+          type: boolean
+          description: "[詳細のみ] サブディレクトリを使用するか"
+        general_firstup:
+          type: string
+          nullable: true
+          description: "[詳細のみ] 初回掲載日時（`Time#to_s` 形式の文字列）"
+        novelupdated_at:
+          type: string
+          nullable: true
+          description: "[詳細のみ] 小説の更新日時（`Time#to_s` 形式の文字列）"
+        suspend:
+          type: boolean
+          description: "[詳細のみ] 更新停止中か"
 
     NovelsListResponse:
       allOf:
-        - $ref: '#/components/schemas/BaseResponse'
+        - $ref: '#/components/schemas/SuccessResponse'
         - type: object
           properties:
             data:
@@ -1478,28 +2323,28 @@ components:
 
     NovelResponse:
       allOf:
-        - $ref: '#/components/schemas/BaseResponse'
+        - $ref: '#/components/schemas/SuccessResponse'
         - type: object
           properties:
             data:
-              $ref: '#/components/schemas/Novel'
-
-    AsyncTaskResponse:
-      allOf:
-        - $ref: '#/components/schemas/BaseResponse'
-        - type: object
-          properties:
-            data:
-              type: object
-              properties:
-                task_id:
-                  type: string
-                  description: タスクID
-                status:
-                  type: string
-                  enum: [queued, running]
-                message:
-                  type: string
+              allOf:
+                - $ref: '#/components/schemas/Novel'
+                - type: object
+                  properties:
+                    title_original:
+                      type: string
+                      description: プロモタグ除去前のタイトル（存在する場合）
+                    author_original:
+                      type: string
+                      description: プロモタグ除去前の作者名（存在する場合）
+                    download_date:
+                      type: string
+                      description: ダウンロード日時（toc.yaml の更新日時。Ruby の `Time#to_s` 形式、ISO 8601 ではありません）
+                      example: "2026-09-30 16:04:42 +0900"
+                    convert_date:
+                      type: string
+                      description: 変換日時（電子書籍ファイルの更新日時。Ruby の `Time#to_s` 形式、ISO 8601 ではありません）
+                      example: "2026-09-30 16:05:10 +0900"
 
     # Tag Schemas
     Tag:
@@ -1512,38 +2357,51 @@ components:
           type: integer
           description: タグが付けられている小説数
         color:
-          type: string
-          description: 表示色クラス
+          $ref: '#/components/schemas/TagColor'
+
+    TagColor:
+      type: string
+      enum: [green, yellow, blue, magenta, cyan, red, white]
+      description: タグの表示色（未設定のタグには取得時に自動で色が割り当てられます）
 
     TagsListResponse:
       allOf:
-        - $ref: '#/components/schemas/BaseResponse'
+        - $ref: '#/components/schemas/SuccessResponse'
         - type: object
           properties:
             data:
-              type: array
-              items:
-                $ref: '#/components/schemas/Tag'
+              type: object
+              properties:
+                tags:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/Tag'
 
     TagInfoResponse:
       allOf:
-        - $ref: '#/components/schemas/BaseResponse'
+        - $ref: '#/components/schemas/SuccessResponse'
         - type: object
           properties:
             data:
-              type: array
-              items:
-                type: object
-                properties:
-                  tag:
-                    type: string
-                  count:
-                    type: integer
-                  total_count:
-                    type: integer
-                  state:
-                    type: integer
-                    description: 0=なし, 1=全て, 2=一部
+              type: object
+              properties:
+                tag_info:
+                  type: object
+                  description: タグ名 → 付与状況
+                  additionalProperties:
+                    type: object
+                    properties:
+                      tag:
+                        type: string
+                        description: タグ名
+                      count:
+                        type: integer
+                        description: 指定された小説のうちこのタグが付いている数
+                      total_count:
+                        type: integer
+                        description: 全小説でこのタグが付いている数
+                      color:
+                        $ref: '#/components/schemas/TagColor'
 
     TagEditRequest:
       type: object
@@ -1552,66 +2410,127 @@ components:
         - states
       properties:
         ids:
-          type: array
-          items:
-            type: string
-          description: 対象の小説ID
+          $ref: '#/components/schemas/NovelIdList'
         states:
           type: object
+          minProperties: 1
           additionalProperties:
             type: integer
-            enum: [0, 1]
-          description: タグ名とその状態（0=削除、1=追加）
+            enum: [0, 1, 2]
+          description: タグ名とその状態（0=削除、1=現状維持、2=追加）
+      example:
+        ids: ["1", "2"]
+        states:
+          favorite: 2
+          end: 0
 
-    # Settings Schemas
-    SettingsResponse:
+    TagChangeRequest:
+      type: object
+      required:
+        - ids
+        - tags
+      properties:
+        ids:
+          $ref: '#/components/schemas/NovelIdList'
+        tags:
+          type: array
+          minItems: 1
+          items:
+            type: string
+          description: 対象のタグ名
+      example:
+        ids: ["1", "2"]
+        tags: ["favorite"]
+
+    TagChangeResponse:
       allOf:
-        - $ref: '#/components/schemas/BaseResponse'
+        - $ref: '#/components/schemas/SuccessResponse'
         - type: object
           properties:
             data:
               type: object
-              additionalProperties: true
-              description: 設定値（キー・バリュー）
+              properties:
+                tags:
+                  type: array
+                  items:
+                    type: string
+                novel_count:
+                  type: integer
+                  description: 対象小説数
 
-    SettingsUpdateRequest:
+    # Settings Schemas
+    SettingValue:
       type: object
-      additionalProperties: true
-      description: 更新する設定値
+      properties:
+        value:
+          description: 設定値
+        type:
+          type: string
+          nullable: true
+          description: 値の型
+        help:
+          type: string
+          nullable: true
+          description: 説明
 
-    SettingsPatchRequest:
-      type: object
-      additionalProperties: true
-      description: 部分更新する設定値
-
-    SettingsVariablesResponse:
+    SettingsResponse:
       allOf:
-        - $ref: '#/components/schemas/BaseResponse'
+        - $ref: '#/components/schemas/SuccessResponse'
         - type: object
           properties:
             data:
-              type: array
-              items:
-                type: object
-                properties:
-                  name:
-                    type: string
-                  description:
-                    type: string
-                  type:
-                    type: string
-                    enum: [string, integer, boolean, select]
-                  default:
-                    description: デフォルト値
-                  options:
-                    type: array
-                    items:
-                      type: string
-                    description: select型の場合の選択肢
+              type: object
+              properties:
+                local:
+                  type: object
+                  additionalProperties:
+                    $ref: '#/components/schemas/SettingValue'
+                  description: ローカル設定（設定名 → 値とメタ情報）
+                global:
+                  type: object
+                  additionalProperties:
+                    $ref: '#/components/schemas/SettingValue'
+                  description: グローバル設定（設定名 → 値とメタ情報）
+                variables:
+                  type: object
+                  additionalProperties: true
+                  description: 設定変数の定義（スコープ → 設定名 → 定義）
+
+    SettingsUpdateRequest:
+      type: object
+      required:
+        - settings
+      properties:
+        settings:
+          type: object
+          minProperties: 1
+          additionalProperties: true
+          description: 設定名 → 値。配列はカンマ区切りに変換され、空文字または null は設定削除になります
+      example:
+        settings:
+          convert.no-open: true
+          device: kindle
+
+    SettingsVariablesResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                variables:
+                  type: object
+                  additionalProperties: true
+                  description: 設定変数の定義（スコープ → 設定名 → 定義）
+                tab_names:
+                  description: 設定画面のタブ名
+                tab_info:
+                  description: 設定画面のタブ情報
 
     SettingsImportResponse:
       allOf:
-        - $ref: '#/components/schemas/BaseResponse'
+        - $ref: '#/components/schemas/SuccessResponse'
         - type: object
           properties:
             data:
@@ -1637,33 +2556,121 @@ components:
     # Novel Settings Schemas
     NovelSettingsResponse:
       allOf:
-        - $ref: '#/components/schemas/BaseResponse'
+        - $ref: '#/components/schemas/SuccessResponse'
         - type: object
           properties:
             data:
               type: object
-              additionalProperties: true
-              description: 小説個別設定
+              properties:
+                novel_id:
+                  type: integer
+                novel_title:
+                  type: string
+                settings:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                      type:
+                        type: string
+                      value:
+                        description: 実効値（force 設定がある場合はその値）
+                      original_value:
+                        description: setting.ini に保存されている値
+                      default_value:
+                        description: デフォルト値
+                      help:
+                        type: string
+                      is_forced:
+                        type: boolean
+                        description: force 設定で上書きされているか
+                      select_keys:
+                        type: array
+                        nullable: true
+                        items:
+                          type: string
+                      select_summaries:
+                        type: array
+                        nullable: true
+                        items:
+                          type: string
+                replace_pattern:
+                  type: array
+                  items:
+                    type: array
+                    items:
+                      type: string
+                    minItems: 2
+                    maxItems: 2
+                  description: 置換設定（[置換前, 置換後] の配列）
 
     NovelSettingsUpdateRequest:
       type: object
-      additionalProperties: true
-      description: 更新する設定値
+      properties:
+        settings:
+          type: object
+          additionalProperties: true
+          description: 設定名 → 値。boolean 型は true/false または "on"/"off"、配列はカンマ区切りに変換されます
+        replace_pattern:
+          type: array
+          items:
+            type: object
+            properties:
+              left:
+                type: string
+                description: 置換前
+              right:
+                type: string
+                description: 置換後
+          description: 置換設定（指定時は全置換。left が空の行は無視されます）
 
   responses:
     BadRequest:
-      description: リクエストパラメータ不正
+      description: |
+        リクエストパラメータ不正。`error.message` はエンドポイントとパラメータで異なります。
+        - `Valid novel IDs are required`: `ids` が有効な小説IDの配列でない（novels の convert / remove / freeze、tags の info / edit / add / delete）
+        - `Tags array is required`: `tags` が空でない配列でない（tags の add / delete）
+        - `Tag states are required`: `states` が空でないオブジェクトでない（tags の edit）
+        - `Invalid JSON: ...`: リクエストボディが JSON として解析できない（`INVALID_JSON`）
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
-          example:
-            status: error
-            error:
-              code: BAD_REQUEST
-              message: リクエストパラメータが不正です
-            meta:
-              timestamp: "2025-11-11T00:00:00Z"
+          examples:
+            invalidParams:
+              summary: 小説IDの配列が不正
+              value:
+                success: false
+                error:
+                  code: INVALID_PARAMS
+                  message: Valid novel IDs are required
+                timestamp: 1731283200
+            tagsRequired:
+              summary: tags 配列がない（tags の add / delete）
+              value:
+                success: false
+                error:
+                  code: INVALID_PARAMS
+                  message: Tags array is required
+                timestamp: 1731283200
+            tagStatesRequired:
+              summary: states がない（tags の edit）
+              value:
+                success: false
+                error:
+                  code: INVALID_PARAMS
+                  message: Tag states are required
+                timestamp: 1731283200
+            invalidJson:
+              summary: JSON 解析エラー
+              value:
+                success: false
+                error:
+                  code: INVALID_JSON
+                  message: "Invalid JSON: unexpected token"
+                timestamp: 1731283200
 
     NotFound:
       description: リソースが存在しない
@@ -1672,41 +2679,112 @@ components:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
           example:
-            status: error
+            success: false
             error:
               code: NOT_FOUND
-              message: 指定されたリソースが見つかりません
-            meta:
-              timestamp: "2025-11-11T00:00:00Z"
+              message: Novel ID 1 not found
+            timestamp: 1731283200
 
     ValidationError:
-      description: バリデーションエラー
+      description: リクエスト不正またはバリデーションエラー
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
           example:
-            status: error
+            success: false
             error:
               code: VALIDATION_ERROR
-              message: 入力値が不正です
+              message: 1 settings have errors
               details:
-                field: id
-                reason: 必須項目です
-            meta:
-              timestamp: "2025-11-11T00:00:00Z"
+                to_page_break_threshold: 値が 整数 ではありません
+            timestamp: 1731283200
 
-    AsyncTaskAccepted:
-      description: 受付成功（非同期処理開始）
+    InternalError:
+      description: |
+        サーバーエラー。処理中に発生した例外を捕捉して返します。`error.message` は例外のメッセージです。
+        `error.code` はエンドポイントごとに異なり、例は次のとおりです:
+        `INTERNAL_ERROR`（novels の一覧・あらすじ、小説設定の取得・更新）、`DOWNLOAD_ERROR`、`CONVERT_ERROR`、`UPDATE_ERROR`、
+        `REMOVE_ERROR`、`FREEZE_ERROR`、`TAG_LIST_ERROR`、`TAG_INDEX_ERROR`、`TAG_INFO_ERROR`、`TAG_EDIT_ERROR`、
+        `TAG_ADD_ERROR`、`TAG_DELETE_ERROR`、`TAG_COLOR_ERROR`、`SETTINGS_GET_ERROR`、`VARIABLES_GET_ERROR`、
+        `SETTINGS_UPDATE_ERROR`、`PARSER_CONFIG_GET_ERROR`、`PARSER_CONFIG_UPDATE_ERROR`、`DIAGNOSTICS_ERROR`、
+        `EXPORT_ERROR`、`IMPORT_ERROR`、`VERSION_ERROR`、`QUEUE_ERROR`、`STATUS_ERROR`、`CANCEL_ERROR`、`CLEAR_ERROR`、
+        `STOP_ERROR`、`RESTART_ERROR`、`TASKS_ERROR`、`TASKS_SUMMARY_ERROR`、`TASK_ERROR`、`TASK_CANCEL_ERROR`。
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/AsyncTaskResponse'
+            $ref: '#/components/schemas/ErrorResponse'
           example:
-            status: success
+            success: false
+            error:
+              code: INTERNAL_ERROR
+              message: エラーメッセージ
+            timestamp: 1731283200
+
+    ServiceUnavailable:
+      description: データベース準備中
+      headers:
+        Retry-After:
+          description: 再試行までの推奨秒数
+          schema:
+            type: integer
+            example: 2
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            error:
+              code: SERVICE_UNAVAILABLE
+              message: データベースを準備中です。しばらくお待ちください。
+            timestamp: 1731283200
+
+    SettingsUpdated:
+      description: 成功
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/SuccessResponse'
+              - type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      updated_count:
+                        type: integer
+                        description: 指定された設定の数
+          example:
+            success: true
             data:
-              task_id: "uuid-here"
-              status: queued
-              message: タスクをキューに追加しました
-            meta:
-              timestamp: "2025-11-11T00:00:00Z"
+              updated_count: 2
+            message: Settings updated successfully
+            timestamp: 1731283200
+
+    SettingsUpdateError:
+      description: リクエスト不正、または一部の設定でエラー
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            invalidParams:
+              summary: settings オブジェクトがない
+              value:
+                success: false
+                error:
+                  code: INVALID_PARAMS
+                  message: Settings object is required
+                timestamp: 1731283200
+            updateError:
+              summary: 設定値のエラー
+              value:
+                success: false
+                error:
+                  code: SETTINGS_UPDATE_ERROR
+                  message: 2 settings had errors
+                  details:
+                    download.wait-steps: 値が 整数 ではありません
+                    unknown-variable: unknown-variable という変数は設定出来ません
+                timestamp: 1731283200

@@ -20,27 +20,8 @@ Use this file to choose only the additional context needed for the current task.
 
 ## Detected Tests
 
-- `lib/web/public/test/jquery.outerclick.html`
-- `spec/data/convert_test/auto_indent/test_auto_indent.txt`
-- `spec/data/convert_test/auto_join_bracket/test_auto_join_bracket.txt`
-- `spec/data/convert_test/auto_join_line/test_auto_join_line.txt`
-- `spec/data/convert_test/convert_numbers/test_convert_numbers.txt`
-- `spec/data/convert_test/convert_page_break/test_convert_page_break.txt`
-- `spec/data/convert_test/convert_prolonged_sound_mark_to_dash/test_convert_prolonged_sound_mark_to_dash.txt`
-- `spec/data/convert_test/disable_alphabet_word_to_zenkaku/test_disable_alphabet_word_to_zenkaku.txt`
-- `spec/data/convert_test/english/test_english.txt`
-- `spec/data/convert_test/force_indent_special_chapter/test_force_indent_special_chapter.txt`
-- `spec/data/convert_test/horizontal_ellipsis/test_horizontal_ellipsis.txt`
-- `spec/data/convert_test/insert_separator/test_insert_separator.txt`
-- `spec/data/convert_test/insert_separator_and_replace_txt/test_insert_separator_and_replace_txt.txt`
-- `spec/data/convert_test/kanji_num/test_kanji_num.txt`
-- `spec/data/convert_test/nonokagi/test_nonokagi.txt`
-- `spec/data/convert_test/replace/test_replace.txt`
-- `spec/data/convert_test/rome_num/test_rome_num.txt`
-- `spec/data/convert_test/ruby/test_ruby.txt`
-- `spec/data/convert_test/ruby_youon/test_ruby_youon.txt`
-- `spec/data/convert_test/sesame/test_sesame.txt`
-- `spec/data/convert_test/to_odd_leader/test_to_odd_leader.txt`
+- `frontend/e2e/` — 5 files: 3 `*.spec.ts`, 2 other `*.ts`
+- `spec/` — 67 files: 59 `*_spec.rb`, 1 `*_test.rb`, 7 other `*.rb`
 
 ## Missing Context Rule
 
@@ -48,29 +29,34 @@ If required context is absent, state the gap clearly, make the safest local assu
 <!-- agent-context-maintainer:end -->
 ## Repository Task Routes
 
+RSpec examples live in `spec/**/*_spec.rb`; `spec/generator/` and `spec/performance/` hold scripts, not examples. Playwright specs are `frontend/e2e/*.spec.ts`.
+
 ### Ruby core, CLI, download, and conversion
 
 - Read the nearest implementation under `lib/` and its matching specs under `spec/`.
 - CLI commands follow the patterns in `lib/cli/command/`; bootstrap work must also inspect `narou.rb`, `bin/narou-mod`, and `lib/loading/`.
 - Novel download/conversion work usually spans `lib/narou/`, `lib/novel/`, `lib/conversion/`, `lib/ebook/`, and the matching fixture-backed specs.
+- Converter behavior changes need a golden-file case under `spec/data/convert_test/` and a regenerated `spec/novel/convert_spec.rb` (see `.agents/core.md`).
 
 ### Supported sites and parsers
 
-- Inspect `webnovel/`, `preset/parsers/`, `preset/parsers/legacy_archive/`, and `lib/narou/parsers/` before choosing the active definition path.
+- Decide which layer the bug lives in before editing (see the site-definition rules in `.agents/core.md`): URL, TOC, and metadata issues belong in `webnovel/<domain>.yaml`; section-body issues on the three preset domains belong in `preset/parsers/<domain>.yaml` or `lib/narou/parsers/`.
 - When changing parser architecture, consult `docs/_tmp/html_parser_analysis.md` if the local documentation repository contains it; do not require that private plan for a narrow selector or fixture fix.
 - Validate network-dependent behavior with fixtures first and keep adult/non-adult or legacy variants aligned when they share behavior.
 
 ### Sinatra Web UI and REST API
 
 - Read `lib/web/appserver.rb` and the relevant modules under `lib/web/api/`, `lib/web/routes/`, `lib/web/helpers/`, `lib/web/workers/`, or `lib/web/server/`.
+- `lib/web/api/v1/` implements the legacy unversioned `/api/*` endpoints, which `docs/openapi.yaml` does not cover; `lib/web/api/v2/` implements `/api/v2/*`, the documented surface.
+- `docs/openapi.yaml` documents every `/api/v2` method and path with the `{success, data | error, timestamp}` envelope built in `v2/base.rb`. When they disagree, the v2 code is the source of truth; update the OpenAPI entries for the routes you change in the same change.
 - API contract changes require `docs/openapi.yaml` and relevant `spec/web/` coverage. If present, `docs/_tmp/web_api_endpoints.md` is an unverified historical aid, not a contract source.
 - Legacy Haml/static UI changes use `lib/web/views/` and `lib/web/public/`; do not apply frontend conventions there.
 
 ### Astro/Svelte frontend
 
-- Read `frontend/AGENTS.md` before any file under `frontend/`.
-- Backend integration changes usually require `frontend/src/lib/api.ts`, `frontend/src/lib/backend-config.ts`, `frontend/src/types/api.ts`, and the matching API endpoint/docs.
-- UI behavior changes should inspect the nearest component/page and `frontend/e2e/` before adding a new pattern.
+- Read `frontend/AGENTS.md` before any file under `frontend/`; it owns the frontend stack, commands, and rules.
+- An API contract change crosses both sides in the same change: the Ruby module, `spec/web/`, and `docs/openapi.yaml`, plus `frontend/src/lib/api.ts` and `frontend/src/types/api.ts`. When a page calls the endpoint on load, also give it a realistic response in `apiResponse()` in `frontend/e2e/support/network.ts`; unknown paths there return an empty `data` object. This applies whichever side you started from.
+- A new Astro page also needs its Sinatra route in `lib/web/routes/static_file.rb` and an entry in the `frontend/e2e/smoke.spec.ts` routes table.
 
 ### Process management and local development
 
@@ -85,16 +71,15 @@ If required context is absent, state the gap clearly, make the safest local assu
 
 ### Documentation
 
-- Verify documentation claims against current code and manifests.
-- Keep `docs/openapi.yaml` synchronized with the implemented API. Treat Markdown files in the independent local `docs/_tmp/` repository as unreviewed working material, not current documentation.
+- Follow the Documentation Lifecycle in `.agents/core.md`, verify documentation claims against current code and manifests, and record new `docs/_tmp/` documents in `docs/_tmp/documentation-review-index.md`.
 - Keep `README.md` focused on the project introduction and end-user usage; developer setup, build, and workflow documentation belongs in `docs/development.md` and must stay aligned with CI and the scripts it describes.
-- Put new investigations, plans, design drafts, decision notes, and time-bound reports in `docs/_tmp/` and record them in its review index.
-- Promote a Markdown document to tracked `docs/` only after checking it against current code, manifests, tests, and runtime behavior and updating public references.
-- If private findings change public behavior or an accepted contract, promote only the verified conclusions into the relevant tracked documentation and leave the working notes private.
+- Keep `docs/openapi.yaml` synchronized with the implemented API for the routes you change.
 
 ### Agent context
 
 - Read `.agents/skills/agent-context-maintainer/SKILL.md` before changing `AGENTS.md`, provider bridges, `.agents/core.md`, `.agents/routing.md`, profiles, or project skills.
+- `.claude/` is tracked except `.claude/settings.local.json` and `.claude/worktrees/`, so shared Claude Code settings, rules, skills, and subagents can live there; keep repository policy in `.agents/` and import it rather than copying it.
+- Claude Code reads nothing under `.agents/` on its own. Root `CLAUDE.md` imports `core.md`, `routing.md`, and the Claude profile with hand-written `@` lines outside the managed block, and `frontend/CLAUDE.md` imports `frontend/AGENTS.md`. Keep those imports when renaming or splitting these files.
 - Keep hand-written repository policy outside managed markers and let the project-scoped script own generated blocks.
 - Update `.agents/skills/agent-context-maintainer/UPSTREAM.md` whenever the vendored upstream commit or payload changes.
 

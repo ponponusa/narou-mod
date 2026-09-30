@@ -1,5 +1,19 @@
 # 更新履歴 - ChangeLog
 
+## Unreleased
+
+### 🔧 メンテナンス
+
+- **REST API v2 の OpenAPI 仕様を実装に同期**
+  - 未記載だった `/api/v2/cancel`・`/api/v2/server/restart`・`/api/v2/tags/add`・`/api/v2/settings/parser` など 12 操作を追加し、実装されていないタスクの pause/resume を削除。
+  - レスポンスの共通形式（`success` / `data` / `error` / `timestamp`）、各エンドポイントのフィールド・ステータスコード・タグ色の値を実装に合わせて修正。
+- **カクヨムのレガシーパーサー定義 v2.2 をアーカイブに追加**
+  - パーサー診断（Legacy エンジン）のバージョン履歴に、現行の `webnovel/kakuyomu.jp.yaml`（v2.2）が表示されるように修正。
+- **開発環境の設定例とドキュメントを整理**
+  - `frontend/.env.example` の `PUBLIC_API_BASE_URL` を空にし、`narou-mod web` が生成する `.env` と揃えた（開発時は Vite の `/api` プロキシを使用）。
+  - 読み込まれていなかった `frontend/tailwind.config.js` と不要な `debride_output.txt` を削除し、実行できない `bundle exec reek` を開発ドキュメントから削除。
+  - AI エージェント向けの指示ファイル（`AGENTS.md`・`CLAUDE.md`・`.agents/`）を現在の構成に合わせて更新し、`.claude/` をリポジトリで共有できるようにした。
+
 ## 3.1.8 (2026-09-30)
 
 ### ⚠️ 互換性変更
