@@ -71,7 +71,7 @@ npm run preview -- --host 0.0.0.0 --port 4321
    npm run dev
    ```
 
-`.env` ファイルで `PUBLIC_API_BASE_URL` を変更することで、バックエンドのURLを調整できます。
+`PUBLIC_API_BASE_URL` は空のままにしてください。空の場合は Vite の `/api` プロキシ経由で `public/backend-port.json` のバックエンドへ接続します。値を設定するとプロキシを経由しなくなります。
 `narou-mod web --no-frontend` でも `.env` と `public/backend-port.json` は更新されるため、別ターミナルで起動した `npm run dev` は同じバックエンドへ接続します。
 
 ## 🧞 コマンド
@@ -105,7 +105,6 @@ frontend/
 │       └── api.ts
 ├── public/               # 静的ファイル
 ├── astro.config.mjs      # Astro設定
-├── tailwind.config.js    # Tailwind CSS設定
 ├── tsconfig.json         # TypeScript設定
 └── package.json          # npm設定
 ```

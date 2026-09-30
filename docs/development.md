@@ -29,8 +29,7 @@ bundle exec ruby narou.rb download <novel_id>
 ```bash
 bundle exec rspec                    # 全テスト（bundle exec rake でも可）
 bundle exec rspec spec/xxx_spec.rb   # 対象を絞ったテスト
-bundle exec rubocop                  # Ruby スタイルチェック
-bundle exec reek                     # Ruby コード品質チェック
+bundle exec rubocop                  # Ruby スタイルチェック（CI では未実行）
 ```
 
 ### ローカルプロセス管理

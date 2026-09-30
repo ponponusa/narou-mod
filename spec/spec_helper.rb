@@ -86,7 +86,6 @@ SimpleCov.start do
   add_filter "/Rakefile"
   add_filter "/Gemfile"
   add_filter "/commitversion"
-  add_filter "/debride_output.txt"
   add_filter "/performance_report.txt"
   add_filter "/trace_dump.txt"
   add_filter "/backend.log"
