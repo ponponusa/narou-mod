@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    narou-mod (3.1.7)
+    narou-mod (3.1.8)
       activesupport (~> 8.0, >= 8.1.0)
       bootsnap (~> 1)
       csv (~> 3.3)
