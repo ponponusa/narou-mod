@@ -2,6 +2,7 @@
 
 require "spec_helper"
 require "lib/novel/downloader"
+require "lib/narou/parsers/narou_parser"
 
 RSpec.describe Downloader::SectionDownloader do
   let(:downloader) do
@@ -106,6 +107,133 @@ RSpec.describe Downloader::SectionDownloader do
     it "Legacyパーサー使用時にparser_infoを記録する" do
       # このテストは実際のa_section_downloadメソッドの動作を確認する統合テスト
       skip "Integration test - requires full Downloader setup"
+    end
+  end
+
+  describe "#reparse_sections_from_raw" do
+    let(:novel_dir) { Pathname.new(Dir.mktmpdir) }
+    let(:stream) { double("stream", puts: nil, error: nil) }
+    let(:subtitles) do
+      [
+        { "index" => "1", "subtitle" => "前書きのある話", "file_subtitle" => "前書きのある話" },
+        { "index" => "2", "subtitle" => "前書きのない話", "file_subtitle" => "前書きのない話" },
+        { "index" => "3", "subtitle" => "rawのない話", "file_subtitle" => "rawのない話" }
+      ]
+    end
+    # 修正前の novel18 のセレクタで保存された状態（本文が前書きに置き換わっている）
+    let(:broken_element) do
+      {
+        "data_type" => "html",
+        "introduction" => "<p id=\"Lp1\">前書きです。</p>",
+        "postscript" => "",
+        "body" => "<p id=\"Lp1\">前書きです。</p>"
+      }
+    end
+    let(:correct_element) do
+      {
+        "data_type" => "html",
+        "introduction" => "<p id=\"Lp1\">前書きです。</p>",
+        "postscript" => "",
+        "body" => "<p id=\"L1\">本文です。</p>"
+      }
+    end
+    let(:downloader) do
+      Downloader.allocate.tap do |d|
+        parser_config = Narou::Parsers::ConfigManager.load_parser_config("novel18.syosetu.com", "nokogiri")
+        d.instance_variable_set(:@parser, Narou::Parsers::NarouParser.new(parser_config, {}, logger: Logger.new(nil)))
+        d.instance_variable_set(:@setting, { "domain" => "novel18.syosetu.com" })
+        d.instance_variable_set(:@stream, stream)
+        allow(d).to receive(:get_novel_data_dir).and_return(novel_dir)
+        allow(d).to receive(:load_toc_file).and_return({ "subtitles" => subtitles })
+      end
+    end
+
+    def write_section(basename, element)
+      path = novel_dir.join(Downloader::SECTION_SAVE_DIR_NAME, "#{basename}.yaml")
+      FileUtils.mkdir_p(path.dirname)
+      File.write(path, YAML.dump({ "index" => basename.split(" ").first, "element" => element }))
+    end
+
+    def write_raw(basename, html)
+      path = novel_dir.join(Downloader::RAW_DATA_DIR_NAME, "#{basename}.html")
+      FileUtils.mkdir_p(path.dirname)
+      File.write(path, html)
+    end
+
+    def read_section(basename)
+      YAML.unsafe_load_file(novel_dir.join(Downloader::SECTION_SAVE_DIR_NAME, "#{basename}.yaml"))
+    end
+
+    def cache_files
+      novel_dir.glob("#{Downloader::SECTION_SAVE_DIR_NAME}/#{Downloader::CACHE_SAVE_DIR_NAME}/*/*.yaml")
+    end
+
+    before do
+      # パーサーのセレクタ履歴を一時ディレクトリに書き込ませる
+      allow(Narou).to receive(:root_dir).and_return(Pathname.new(Dir.mktmpdir))
+      allow(Narou).to receive(:script_dir).and_return(Pathname.new(File.expand_path("../../", __dir__)))
+
+      write_raw("1 前書きのある話", <<~HTML)
+        <div class="js-novel-text p-novel__text p-novel__text--preface"><p id="Lp1">前書きです。</p></div>
+        <div class="js-novel-text p-novel__text"><p id="L1">本文です。</p></div>
+      HTML
+      write_section("1 前書きのある話", broken_element)
+      write_raw("2 前書きのない話", <<~HTML)
+        <div class="js-novel-text p-novel__text"><p id="L1">前書きのない本文です。</p></div>
+      HTML
+      write_section("2 前書きのない話", {
+        "data_type" => "html", "introduction" => "", "postscript" => "",
+        "body" => "<p id=\"L1\">前書きのない本文です。</p>"
+      })
+      write_section("3 rawのない話", correct_element)
+    end
+
+    after do
+      FileUtils.remove_entry_secure(novel_dir)
+    end
+
+    it "raw の HTML を解析し直し、内容が変わった話だけを保存する" do
+      result = downloader.reparse_sections_from_raw
+
+      expect(result[:changed].map { |info| info["index"] }).to eq ["1"]
+      expect(result).to include(unchanged: 1, skipped: 1, failed: 0)
+      expect(read_section("1 前書きのある話")["element"]).to eq correct_element
+      expect(read_section("1 前書きのある話")["index"]).to eq "1"
+    end
+
+    it "変更前の本文を差分用キャッシュに退避する" do
+      downloader.reparse_sections_from_raw
+
+      expect(cache_files.map { |path| path.basename.to_s }).to eq ["1 前書きのある話.yaml"]
+      expect(YAML.unsafe_load_file(cache_files.first)["element"]).to eq broken_element
+    end
+
+    it "dry_run では保存もキャッシュの作成もしない" do
+      result = downloader.reparse_sections_from_raw(dry_run: true)
+
+      expect(result[:changed].size).to eq 1
+      expect(read_section("1 前書きのある話")["element"]).to eq broken_element
+      expect(novel_dir.join(Downloader::SECTION_SAVE_DIR_NAME, Downloader::CACHE_SAVE_DIR_NAME)).not_to exist
+    end
+
+    it "本文を取り出せない話は保存されている本文を残す" do
+      write_raw("1 前書きのある話", "<div class=\"unknown\">構造の変わったページ</div>")
+
+      result = downloader.reparse_sections_from_raw
+
+      expect(result[:changed]).to be_empty
+      expect(result[:failed]).to eq 1
+      expect(read_section("1 前書きのある話")["element"]).to eq broken_element
+      expect(stream).to have_received(:error).with(include("本文を取り出せなかった"))
+    end
+
+    it "変更が無い場合は差分用キャッシュのディレクトリを残さない" do
+      write_section("1 前書きのある話", correct_element)
+
+      result = downloader.reparse_sections_from_raw
+
+      expect(result[:changed]).to be_empty
+      expect(novel_dir.glob("#{Downloader::SECTION_SAVE_DIR_NAME}/#{Downloader::CACHE_SAVE_DIR_NAME}/*")).to be_empty
     end
   end
 end
