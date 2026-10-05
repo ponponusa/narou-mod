@@ -91,11 +91,12 @@ module Command
     #
     # 変換する
     #
-    # 失敗した場合は update と同じく記録しておき、次回の reparse や update で再変換する
+    # 失敗した場合は update と同じく記録しておき、次回の reparse や update で再変換する。
+    # 記録には実際の変換結果が必要なので、concurrency が有効でも同期実行する
     #
     def convert_novel(target, data)
       require "lib/cli/command/convert" unless defined?(Command::Convert)
-      convert_status = Convert.execute!(target)
+      convert_status = Convert.execute!(target, sync: true)
       if convert_status > 0
         data["_convert_failure"] = true
       else

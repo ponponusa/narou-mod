@@ -41,12 +41,12 @@ RSpec.describe Command::Reparse do
     command.execute!
   end
 
-  it "解析し直して本文が変わった小説を変換する" do
+  it "解析し直して本文が変わった小説を同期実行で変換する" do
     status, output = run("n1234ab")
 
     expect(status).to eq 0
     expect(downloader).to have_received(:reparse_sections_from_raw).with(dry_run: nil)
-    expect(Command::Convert).to have_received(:execute!).with("n1234ab")
+    expect(Command::Convert).to have_received(:execute!).with("n1234ab", sync: true)
     expect(output).to include("更新あり 1 話、変更なし 2 話")
   end
 
@@ -101,7 +101,7 @@ RSpec.describe Command::Reparse do
     status, output = run("n1234ab")
 
     expect(status).to eq 0
-    expect(Command::Convert).to have_received(:execute!).with("n1234ab")
+    expect(Command::Convert).to have_received(:execute!).with("n1234ab", sync: true)
     expect(output).to include("前回変換できなかったので再変換します")
     expect(data).not_to have_key("_convert_failure")
   end
