@@ -13,158 +13,165 @@ RSpec.describe Narou::Parsers::NarouParser do
 
   let(:parser) do
     # 実際の設定ファイルを読み込む
-    site_config = Narou::Parsers::ConfigManager.load_parser_config("ncode.syosetu.com", "nokogiri")
+    site_config = Narou::Parsers::ConfigManager.load_parser_config(domain, "nokogiri")
     user_config = {}
     described_class.new(site_config, user_config)
   end
 
-  describe "前書き・後書きの分離" do
-    let(:html_with_comments) do
-      <<~HTML
-        <article class="p-novel">
-          <div class="p-novel__body">
-            <div class="js-novel-text p-novel__text p-novel__text--preface">
-              <p id="Lp1">初めて書いた作品になります。</p>
-              <p id="Lp2">書き物自体が初めてなので、読みづらかったりする箇所も多々あるかと思いますが、宜しければご一読いただき感想などいただけると嬉しいです。</p>
-            </div>
+  # 同じ NarouParser を使う両ドメインの preset で、前書き・後書きの分離を確認する
+  %w(ncode.syosetu.com novel18.syosetu.com).each do |target_domain|
+    context "#{target_domain} の設定の場合" do
+      let(:domain) { target_domain }
 
-            <div class="js-novel-text p-novel__text">
-              <p id="L1">　人の熱気がすごい、今この場の湿度はどれくらいだろう？</p>
-              <p id="L2">　俺は、さして広くもない会場にごった返している人々が放つ、ムワッとした空気をその肌や鼻孔で感じていた。</p>
-              <p id="L3"><br /></p>
-              <p id="L4">　その大きくはない会場のステージの上では、多くの観客に熱い視線を向けられながら、三人の女の子が踊り歌っている。</p>
-            </div>
+      describe "前書き・後書きの分離" do
+        let(:html_with_comments) do
+          <<~HTML
+            <article class="p-novel">
+              <div class="p-novel__body">
+                <div class="js-novel-text p-novel__text p-novel__text--preface">
+                  <p id="Lp1">初めて書いた作品になります。</p>
+                  <p id="Lp2">書き物自体が初めてなので、読みづらかったりする箇所も多々あるかと思いますが、宜しければご一読いただき感想などいただけると嬉しいです。</p>
+                </div>
 
-            <div class="js-novel-text p-novel__text p-novel__text--afterword">
-              <p id="La1">これで、第一部は終了となります。</p>
-              <p id="La2">ここまで読んでいただいて、ありがとうございます。</p>
-              <p id="La3"><br /></p>
-              <p id="La4">第二部も一週間程度開けて、投稿を始めたいと思っていますので、よろしければ引き続き読んでいただけると嬉しいです。</p>
-            </div>
-          </div>
-        </article>
-      HTML
-    end
+                <div class="js-novel-text p-novel__text">
+                  <p id="L1">　人の熱気がすごい、今この場の湿度はどれくらいだろう？</p>
+                  <p id="L2">　俺は、さして広くもない会場にごった返している人々が放つ、ムワッとした空気をその肌や鼻孔で感じていた。</p>
+                  <p id="L3"><br /></p>
+                  <p id="L4">　その大きくはない会場のステージの上では、多くの観客に熱い視線を向けられながら、三人の女の子が踊り歌っている。</p>
+                </div>
 
-    it "本文のみを抽出し、前書き・後書きを除外する" do
-      result = parser.parse_section(html_with_comments)
+                <div class="js-novel-text p-novel__text p-novel__text--afterword">
+                  <p id="La1">これで、第一部は終了となります。</p>
+                  <p id="La2">ここまで読んでいただいて、ありがとうございます。</p>
+                  <p id="La3"><br /></p>
+                  <p id="La4">第二部も一週間程度開けて、投稿を始めたいと思っていますので、よろしければ引き続き読んでいただけると嬉しいです。</p>
+                </div>
+              </div>
+            </article>
+          HTML
+        end
 
-      expect(result["body"]).to include("人の熱気がすごい")
-      expect(result["body"]).to include("三人の女の子が踊り歌っている")
+        it "本文のみを抽出し、前書き・後書きを除外する" do
+          result = parser.parse_section(html_with_comments)
 
-      # 前書き・後書きが本文に含まれていないこと
-      expect(result["body"]).not_to include("初めて書いた作品になります")
-      expect(result["body"]).not_to include("第一部は終了となります")
-    end
+          expect(result["body"]).to include("人の熱気がすごい")
+          expect(result["body"]).to include("三人の女の子が踊り歌っている")
 
-    it "前書きを正しく抽出する" do
-      result = parser.parse_section(html_with_comments)
+          # 前書き・後書きが本文に含まれていないこと
+          expect(result["body"]).not_to include("初めて書いた作品になります")
+          expect(result["body"]).not_to include("第一部は終了となります")
+        end
 
-      expect(result["introduction"]).to include("初めて書いた作品になります")
-      expect(result["introduction"]).to include("感想などいただけると嬉しいです")
+        it "前書きを正しく抽出する" do
+          result = parser.parse_section(html_with_comments)
 
-      # 本文が前書きに含まれていないこと
-      expect(result["introduction"]).not_to include("人の熱気がすごい")
-    end
+          expect(result["introduction"]).to include("初めて書いた作品になります")
+          expect(result["introduction"]).to include("感想などいただけると嬉しいです")
 
-    it "後書きを正しく抽出する" do
-      result = parser.parse_section(html_with_comments)
+          # 本文が前書きに含まれていないこと
+          expect(result["introduction"]).not_to include("人の熱気がすごい")
+        end
 
-      expect(result["postscript"]).to include("第一部は終了となります")
-      expect(result["postscript"]).to include("引き続き読んでいただけると嬉しいです")
+        it "後書きを正しく抽出する" do
+          result = parser.parse_section(html_with_comments)
 
-      # 本文が後書きに含まれていないこと
-      expect(result["postscript"]).not_to include("人の熱気がすごい")
-    end
+          expect(result["postscript"]).to include("第一部は終了となります")
+          expect(result["postscript"]).to include("引き続き読んでいただけると嬉しいです")
 
-    it "data_typeがhtmlであること" do
-      result = parser.parse_section(html_with_comments)
-      expect(result["data_type"]).to eq("html")
-    end
-  end
+          # 本文が後書きに含まれていないこと
+          expect(result["postscript"]).not_to include("人の熱気がすごい")
+        end
 
-  describe "コメントがない場合" do
-    let(:html_without_comments) do
-      <<~HTML
-        <article class="p-novel">
-          <div class="p-novel__body">
-            <div class="js-novel-text p-novel__text">
-              <p id="L1">　本文のみのケースです。</p>
-              <p id="L2">　前書きも後書きもありません。</p>
-            </div>
-          </div>
-        </article>
-      HTML
-    end
+        it "data_typeがhtmlであること" do
+          result = parser.parse_section(html_with_comments)
+          expect(result["data_type"]).to eq("html")
+        end
+      end
 
-    it "本文のみを抽出する" do
-      result = parser.parse_section(html_without_comments)
+      describe "コメントがない場合" do
+        let(:html_without_comments) do
+          <<~HTML
+            <article class="p-novel">
+              <div class="p-novel__body">
+                <div class="js-novel-text p-novel__text">
+                  <p id="L1">　本文のみのケースです。</p>
+                  <p id="L2">　前書きも後書きもありません。</p>
+                </div>
+              </div>
+            </article>
+          HTML
+        end
 
-      expect(result["body"]).to include("本文のみのケースです")
-      expect(result["body"]).to include("前書きも後書きもありません")
-    end
+        it "本文のみを抽出する" do
+          result = parser.parse_section(html_without_comments)
 
-    it "前書きと後書きは空文字列になる" do
-      result = parser.parse_section(html_without_comments)
+          expect(result["body"]).to include("本文のみのケースです")
+          expect(result["body"]).to include("前書きも後書きもありません")
+        end
 
-      expect(result["introduction"]).to eq("")
-      expect(result["postscript"]).to eq("")
-    end
-  end
+        it "前書きと後書きは空文字列になる" do
+          result = parser.parse_section(html_without_comments)
 
-  describe "前書きのみの場合" do
-    let(:html_with_preface_only) do
-      <<~HTML
-        <article class="p-novel">
-          <div class="p-novel__body">
-            <div class="js-novel-text p-novel__text p-novel__text--preface">
-              <p id="Lp1">これは前書きです。</p>
-            </div>
+          expect(result["introduction"]).to eq("")
+          expect(result["postscript"]).to eq("")
+        end
+      end
 
-            <div class="js-novel-text p-novel__text">
-              <p id="L1">　本文です。</p>
-            </div>
-          </div>
-        </article>
-      HTML
-    end
+      describe "前書きのみの場合" do
+        let(:html_with_preface_only) do
+          <<~HTML
+            <article class="p-novel">
+              <div class="p-novel__body">
+                <div class="js-novel-text p-novel__text p-novel__text--preface">
+                  <p id="Lp1">これは前書きです。</p>
+                </div>
 
-    it "本文と前書きを正しく分離する" do
-      result = parser.parse_section(html_with_preface_only)
+                <div class="js-novel-text p-novel__text">
+                  <p id="L1">　本文です。</p>
+                </div>
+              </div>
+            </article>
+          HTML
+        end
 
-      expect(result["body"]).to include("本文です")
-      expect(result["body"]).not_to include("これは前書きです")
+        it "本文と前書きを正しく分離する" do
+          result = parser.parse_section(html_with_preface_only)
 
-      expect(result["introduction"]).to include("これは前書きです")
-      expect(result["postscript"]).to eq("")
-    end
-  end
+          expect(result["body"]).to include("本文です")
+          expect(result["body"]).not_to include("これは前書きです")
 
-  describe "後書きのみの場合" do
-    let(:html_with_afterword_only) do
-      <<~HTML
-        <article class="p-novel">
-          <div class="p-novel__body">
-            <div class="js-novel-text p-novel__text">
-              <p id="L1">　本文です。</p>
-            </div>
+          expect(result["introduction"]).to include("これは前書きです")
+          expect(result["postscript"]).to eq("")
+        end
+      end
 
-            <div class="js-novel-text p-novel__text p-novel__text--afterword">
-              <p id="La1">これは後書きです。</p>
-            </div>
-          </div>
-        </article>
-      HTML
-    end
+      describe "後書きのみの場合" do
+        let(:html_with_afterword_only) do
+          <<~HTML
+            <article class="p-novel">
+              <div class="p-novel__body">
+                <div class="js-novel-text p-novel__text">
+                  <p id="L1">　本文です。</p>
+                </div>
 
-    it "本文と後書きを正しく分離する" do
-      result = parser.parse_section(html_with_afterword_only)
+                <div class="js-novel-text p-novel__text p-novel__text--afterword">
+                  <p id="La1">これは後書きです。</p>
+                </div>
+              </div>
+            </article>
+          HTML
+        end
 
-      expect(result["body"]).to include("本文です")
-      expect(result["body"]).not_to include("これは後書きです")
+        it "本文と後書きを正しく分離する" do
+          result = parser.parse_section(html_with_afterword_only)
 
-      expect(result["introduction"]).to eq("")
-      expect(result["postscript"]).to include("これは後書きです")
+          expect(result["body"]).to include("本文です")
+          expect(result["body"]).not_to include("これは後書きです")
+
+          expect(result["introduction"]).to eq("")
+          expect(result["postscript"]).to include("これは後書きです")
+        end
+      end
     end
   end
 end

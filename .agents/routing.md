@@ -21,7 +21,7 @@ Use this file to choose only the additional context needed for the current task.
 ## Detected Tests
 
 - `frontend/e2e/` — 5 files: 3 `*.spec.ts`, 2 other `*.ts`
-- `spec/` — 67 files: 59 `*_spec.rb`, 1 `*_test.rb`, 7 other `*.rb`
+- `spec/` — 68 files: 60 `*_spec.rb`, 1 `*_test.rb`, 7 other `*.rb`
 
 ## Missing Context Rule
 

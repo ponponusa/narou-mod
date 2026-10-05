@@ -20,12 +20,14 @@ toc_selectors:
 
 # 本文ページ設定
 body_selectors:
-  - selector: "div.js-novel-text.p-novel__text"
+  - selector: "div.js-novel-text.p-novel__text:not(.p-novel__text--preface):not(.p-novel__text--afterword)"
     priority: 10
     extract: "inner_html"
-  - selector: "div.p-novel__text"
+    description: "本文のみ（前書き・後書きを除外）"
+  - selector: "div.p-novel__text:not(.p-novel__text--preface):not(.p-novel__text--afterword)"
     priority: 8
     extract: "inner_html"
+    description: "BEMクラスのみ（前書き・後書きを除外）"
   - selector: "div#novel_honbun"
     priority: 5
     extract: "inner_html"

@@ -67,6 +67,59 @@ class Downloader
     end
 
     #
+    # raw に保存してある本文ページのHTMLを現在のパーサーで解析し直し、本文データを作り直す
+    #
+    # 内容が変わった話だけを保存し、変更前の本文は差分用キャッシュに退避する。
+    # 解析し直した本文が空になる話は、取り出しに失敗したとみなして保存しない。
+    #
+    # @return [Hash] :changed（変更した話の subtitle info の配列）、:unchanged、:skipped、:failed（件数）
+    #
+    def reparse_sections_from_raw(dry_run: false)
+      result = { changed: [], unchanged: 0, skipped: 0, failed: 0 }
+      toc = load_toc_file
+      subtitles = (toc && toc["subtitles"]) || []
+      @cache_dir = create_cache_dir unless dry_run
+      subtitles.each do |subtitle_info|
+        basename = "#{subtitle_info["index"]} #{subtitle_info["file_subtitle"]}"
+        raw_path = raw_dir.join("#{basename}.html")
+        section_file_relative_path = File.join(SECTION_SAVE_DIR_NAME, "#{basename}.yaml")
+        section = load_novel_data(section_file_relative_path)
+        unless raw_path.exist? && section
+          result[:skipped] += 1
+          next
+        end
+
+        subtitle = @gurad_spoiler ? Helper.to_unprintable_words(subtitle_info["subtitle"]) : subtitle_info["subtitle"]
+        label = "#{subtitle_info["index"]}　#{HTML.new(subtitle).delete_ruby_tag}"
+        begin
+          element = parse_section_source(File.read(raw_path, encoding: Encoding::UTF_8), subtitle_info.dup)
+        rescue Narou::Parsers::ParserError => e
+          @stream.error "#{label} の解析に失敗しました（#{e.message}）"
+          result[:failed] += 1
+          next
+        end
+        if element["body"].strip.empty? && !section.dig("element", "body").to_s.strip.empty?
+          @stream.error "#{label} の本文を取り出せなかったため、保存されている本文をそのまま残します"
+          result[:failed] += 1
+          next
+        end
+        if section["element"] == element
+          result[:unchanged] += 1
+          next
+        end
+
+        @stream.puts "#{label} (更新あり)"
+        result[:changed] << subtitle_info
+        next if dry_run
+        move_to_cache_dir(section_file_relative_path)
+        save_novel_data(section_file_relative_path, section.merge("element" => element))
+      end
+      result
+    ensure
+      remove_cache_dir if @cache_dir && @cache_dir.glob("*").empty?
+    end
+
+    #
     # すでに保存されている内容とDLした内容が違うかどうか
     #
     def different_section?(old_relative_path, new_subtitle_info)
@@ -119,6 +172,18 @@ class Downloader
       raw = download_raw_data(subtitle_url)
       save_raw_data(raw, subtitle_info, ".html")
 
+      element = parse_section_source(raw, subtitle_info)
+      subtitle_info["download_time"] = Time.now
+      @section_download_cache[index] = element
+      element
+    end
+
+    #
+    # 本文ページのHTMLを解析して element を作成する
+    #
+    # subtitle_info には使用したパーサーの情報（parser_info）が記録される
+    #
+    def parse_section_source(raw, subtitle_info)
       # 新パーサーが利用可能な場合は新パーサーを使用
       if @parser
         result = @parser.parse_section(raw, subtitle_info)
@@ -153,8 +218,6 @@ class Downloader
         }
       end
 
-      subtitle_info["download_time"] = Time.now
-      @section_download_cache[index] = element
       element
     end
 
