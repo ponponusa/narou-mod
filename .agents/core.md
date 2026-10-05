@@ -6,7 +6,7 @@ This file is the source of truth for repository-wide policy. Keep provider-speci
 ## Repository Snapshot
 
 - Detected languages: Ruby, Markdown, TypeScript, JavaScript, Python
-- Approximate tracked context files scanned: 571
+- Approximate tracked context files scanned: 573
 
 ## Detected Manifests
 
