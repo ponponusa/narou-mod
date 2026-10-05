@@ -8,6 +8,7 @@ RSpec.describe Command::Reparse do
   let(:data) { { "id" => 1, "title" => "テスト小説" } }
   let(:downloader) { instance_double(Downloader) }
   let(:result) { { changed: [{ "index" => "1" }], unchanged: 2, skipped: 0, failed: 0 } }
+  let(:database) { instance_double(Database, save_database: nil) }
 
   before do
     allow(command).to receive(:tagname_to_ids)
@@ -17,6 +18,7 @@ RSpec.describe Command::Reparse do
     allow(Narou).to receive(:novel_frozen?).with("n1234ab").and_return(false)
     allow(downloader).to receive(:reparse_sections_from_raw).and_return(result)
     allow(Command::Convert).to receive(:execute!).and_return(0)
+    allow(Database).to receive(:instance).and_return(database)
   end
 
   def run(*argv)
@@ -80,6 +82,28 @@ RSpec.describe Command::Reparse do
 
     expect(status).to eq 1
     expect(output).to include("失敗 1 話")
+  end
+
+  it "変換に失敗した場合は記録し、終了コードで知らせる" do
+    allow(Command::Convert).to receive(:execute!).and_return(1)
+
+    status, = run("n1234ab")
+
+    expect(status).to eq 1
+    expect(data["_convert_failure"]).to be true
+    expect(database).to have_received(:save_database)
+  end
+
+  it "前回の変換に失敗していた小説は、本文が変わらなくても再変換する" do
+    data["_convert_failure"] = true
+    result[:changed] = []
+
+    status, output = run("n1234ab")
+
+    expect(status).to eq 0
+    expect(Command::Convert).to have_received(:execute!).with("n1234ab")
+    expect(output).to include("前回変換できなかったので再変換します")
+    expect(data).not_to have_key("_convert_failure")
   end
 
   it "存在しない小説はエラーにする" do

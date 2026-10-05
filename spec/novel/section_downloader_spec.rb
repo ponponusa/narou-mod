@@ -216,6 +216,22 @@ RSpec.describe Downloader::SectionDownloader do
       expect(novel_dir.join(Downloader::SECTION_SAVE_DIR_NAME, Downloader::CACHE_SAVE_DIR_NAME)).not_to exist
     end
 
+    it "成功したセレクタの履歴を記録する" do
+      allow(Narou::Parsers::ConfigManager).to receive(:record_selector_history)
+
+      downloader.reparse_sections_from_raw
+
+      expect(Narou::Parsers::ConfigManager).to have_received(:record_selector_history).at_least(:once)
+    end
+
+    it "dry_run ではセレクタの履歴を記録しない" do
+      allow(Narou::Parsers::ConfigManager).to receive(:record_selector_history)
+
+      downloader.reparse_sections_from_raw(dry_run: true)
+
+      expect(Narou::Parsers::ConfigManager).not_to have_received(:record_selector_history)
+    end
+
     it "本文を取り出せない話は保存されている本文を残す" do
       write_raw("1 前書きのある話", "<div class=\"unknown\">構造の変わったページ</div>")
 

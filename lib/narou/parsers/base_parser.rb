@@ -13,6 +13,8 @@ module Narou
   module Parsers
     class BaseParser
       attr_reader :site_setting, :user_config, :config, :logger
+      # true にすると成功したセレクタの履歴を記録しない（保存を伴わない解析で使う）
+      attr_writer :skip_selector_history
 
       def initialize(site_setting, user_config, logger: nil)
         @site_setting = site_setting  # webnovel/*.yaml または preset/parsers/*.yaml
@@ -143,6 +145,8 @@ module Narou
 
       # 成功したセレクタをユーザー設定に記録
       def update_successful_selector(selector_key, selector)
+        return if @skip_selector_history
+
         domain = @config["domain"]
         engine = self.class.name.include?("Legacy") ? "legacy" : "nokogiri"
 
