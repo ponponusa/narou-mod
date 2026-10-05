@@ -71,6 +71,7 @@ class Downloader
     #
     # 内容が変わった話だけを保存し、変更前の本文は差分用キャッシュに退避する。
     # 解析し直した本文が空になる話は、取り出しに失敗したとみなして保存しない。
+    # dry_run ではパーサーのセレクタ履歴も記録しない。
     #
     # @return [Hash] :changed（変更した話の subtitle info の配列）、:unchanged、:skipped、:failed（件数）
     #
@@ -79,6 +80,7 @@ class Downloader
       toc = load_toc_file
       subtitles = (toc && toc["subtitles"]) || []
       @cache_dir = create_cache_dir unless dry_run
+      @parser.skip_selector_history = dry_run if @parser
       subtitles.each do |subtitle_info|
         basename = "#{subtitle_info["index"]} #{subtitle_info["file_subtitle"]}"
         raw_path = raw_dir.join("#{basename}.html")

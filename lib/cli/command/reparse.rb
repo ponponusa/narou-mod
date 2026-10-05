@@ -18,7 +18,7 @@ module Command
   ・パーサーの不具合で本文が正しく保存されなかった話の復旧に使います。
     サイトから再取得できる小説は download --force での再ダウンロードを推奨します。
   ・内容が変わった話だけを保存し、変更前の本文は差分用キャッシュに残します(diff コマンドで確認できます)。
-  ・本文が変わった小説は続けて変換します。
+  ・本文が変わった小説は続けて変換します。前回の変換に失敗していた小説も再変換します。
   ・raw フォルダに HTML が無い話(rawデータを保存しない設定の場合など)は解析し直せません。
   ・凍結中の小説は対象外です。
 
@@ -78,16 +78,33 @@ module Command
       puts summary
       if @options["dry-run"]
         puts "(--dry-run のため保存していません)" if changed > 0
-      elsif changed > 0 && !@options["no-convert"]
-        require "lib/cli/command/convert" unless defined?(Command::Convert)
-        convert_status = Convert.execute!(target)
-        raise Interrupt if convert_status == Narou::EXIT_INTERRUPT
-        return false if convert_status > 0
+      elsif (changed > 0 || data["_convert_failure"]) && !@options["no-convert"]
+        puts "<yellow>前回変換できなかったので再変換します</yellow>".termcolor if changed.zero?
+        return false unless convert_novel(target, data)
       end
       result[:failed].zero?
     rescue Downloader::InvalidTarget => e
       error e.message
       false
+    end
+
+    #
+    # 変換する
+    #
+    # 失敗した場合は update と同じく記録しておき、次回の reparse や update で再変換する。
+    # 記録には実際の変換結果が必要なので、concurrency が有効でも同期実行する
+    #
+    def convert_novel(target, data)
+      require "lib/cli/command/convert" unless defined?(Command::Convert)
+      convert_status = Convert.execute!(target, sync: true)
+      if convert_status > 0
+        data["_convert_failure"] = true
+      else
+        data.delete("_convert_failure")
+      end
+      Database.instance.save_database
+      raise Interrupt if convert_status == Narou::EXIT_INTERRUPT
+      convert_status.zero?
     end
   end
 end
