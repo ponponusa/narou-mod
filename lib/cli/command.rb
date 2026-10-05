@@ -21,6 +21,7 @@ module Command
     "folder"   => "command/folder",
     "browser"  => "command/browser",
     "remove"   => "command/remove",
+    "reparse"  => "command/reparse",
     "freeze"   => "command/freeze",
     "tag"      => "command/tag",
     "web"      => "command/web",

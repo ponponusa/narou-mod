@@ -574,6 +574,175 @@ def iter_files(root: Path):
     yield from scan_inventory(root).files
 
 
+# Test detection only counts source code: fixture texts, HTML pages, and
+# YAML/JSON data that merely live under a test directory are not tests.
+TEST_CODE_SUFFIXES = {
+    ".c",
+    ".cc",
+    ".cjs",
+    ".cpp",
+    ".cs",
+    ".cts",
+    ".dart",
+    ".ex",
+    ".exs",
+    ".fs",
+    ".go",
+    ".groovy",
+    ".java",
+    ".js",
+    ".jsx",
+    ".kt",
+    ".kts",
+    ".lua",
+    ".m",
+    ".mjs",
+    ".mm",
+    ".mts",
+    ".php",
+    ".py",
+    ".rb",
+    ".rs",
+    ".scala",
+    ".swift",
+    ".ts",
+    ".tsx",
+}
+# Languages whose conventions name test classes `FooTest`, `FooTests`, or
+# `FooSpec` rather than using a snake_case or dotted marker.
+CAMEL_TEST_SUFFIXES = {".cs", ".fs", ".groovy", ".java", ".kt", ".kts", ".php", ".scala", ".swift"}
+# Directories whose code files count as test code even without a test-style
+# file name (helpers, support files, Jest `__tests__`, Rust `tests/`). The same
+# names mark the root a test file is grouped under in routing.md.
+TEST_DIR_NAMES = {"__tests__", "e2e", "spec", "specs", "test", "tests"}
+# Fixture and snapshot trees commonly nest inside test directories and may
+# contain code-suffixed samples (`testdata/*.go`, `fixtures/*.rb`) that are
+# inputs, not tests, so any path inside one is never a test. `vendor` and
+# `node_modules` are already pruned by EXCLUDED_DIRS but are repeated so that
+# detection stays correct when called on an unfiltered path list.
+TEST_DATA_DIR_NAMES = {
+    "__fixtures__",
+    "__snapshots__",
+    "fixture",
+    "fixtures",
+    "node_modules",
+    "snapshots",
+    "test_data",
+    "testdata",
+    "vendor",
+}
+# Generic data and published-asset directory names. They hold test inputs
+# (`spec/data/*_spec.rb`) or demo assets (`public/test/*.js`) when nested under
+# a test root, but are also ordinary application packages (`src/data/`,
+# `internal/data/`) whose conventionally named tests must still be found. They
+# exclude a file only when they sit directly inside a TEST_DIR_NAMES directory
+# (`spec/data/`, `test/public/`), or when the file lacks a conventional test
+# name. Deeper packages such as `src/test/java/com/x/data/` keep their tests.
+TEST_DATA_DIR_NAMES_SOFT = {"data", "public"}
+MAX_TEST_LOCATIONS = 20
+
+
+def test_pattern(path: Path) -> Optional[str]:
+    """Return the naming convention that marks `path` as test code, or None.
+
+    Conventional names (`*_spec.rb`, `*.test.ts`, `test_*.py`, `*_test.go`,
+    `FooTest.java`, ...) return that glob; other code files under a test
+    directory return `other *.<ext>`. Non-code files and anything inside a
+    fixture/snapshot tree are never tests; `data`/`public` trees exclude a file
+    when they sit directly inside a test directory or when the file name is not
+    a conventional test name.
+    """
+    suffix = path.suffix.lower()
+    if suffix not in TEST_CODE_SUFFIXES:
+        return None
+    dir_parts = path.parts[:-1]
+    if any(part in TEST_DATA_DIR_NAMES for part in dir_parts):
+        return None
+    conventional = conventional_test_pattern(path.name[: -len(path.suffix)], suffix)
+    seen_test_dir = False
+    for index, part in enumerate(dir_parts):
+        if part in TEST_DATA_DIR_NAMES_SOFT:
+            directly_in_test_dir = index > 0 and dir_parts[index - 1] in TEST_DIR_NAMES
+            if directly_in_test_dir or conventional is None:
+                return None
+        if part in TEST_DIR_NAMES:
+            seen_test_dir = True
+    if conventional is not None:
+        return conventional
+    if seen_test_dir:
+        return f"other *{suffix}"
+    return None
+
+
+def conventional_test_pattern(stem: str, suffix: str) -> Optional[str]:
+    """Return the glob for a conventional test file name, or None."""
+    for marker in (".spec", ".test", "_spec", "_test"):
+        if stem.endswith(marker) and len(stem) > len(marker):
+            return f"*{marker}{suffix}"
+    if stem.startswith("test_") and len(stem) > len("test_"):
+        return f"test_*{suffix}"
+    if suffix in CAMEL_TEST_SUFFIXES:
+        for marker in ("Tests", "Test", "Spec"):
+            if stem.endswith(marker) and len(stem) > len(marker):
+                return f"*{marker}{suffix}"
+    return None
+
+
+def test_root(path: Path) -> str:
+    """Group a test file under its nearest test-named ancestor, else its parent."""
+    dir_parts = path.parts[:-1]
+    for index in range(len(dir_parts), 0, -1):
+        if dir_parts[index - 1] in TEST_DIR_NAMES:
+            return Path(*dir_parts[:index]).as_posix() + "/"
+    return path.parent.as_posix() + "/" if dir_parts else "./"
+
+
+def test_locations(test_files: list[Path]) -> list[dict[str, object]]:
+    groups: dict[str, dict[str, int]] = {}
+    for path in test_files:
+        label = test_pattern(path)
+        if label is None:
+            continue
+        patterns = groups.setdefault(test_root(path), {})
+        patterns[label] = patterns.get(label, 0) + 1
+    locations: list[dict[str, object]] = []
+    for root in sorted(groups):
+        patterns = groups[root]
+        # Named conventions first (most files first), then helper/support files.
+        ordered = sorted(patterns.items(), key=lambda item: (item[0].startswith("other "), -item[1], item[0]))
+        locations.append(
+            {
+                "path": root,
+                "count": sum(patterns.values()),
+                "patterns": [{"pattern": label, "count": count} for label, count in ordered],
+            }
+        )
+    return locations
+
+
+def test_location_list(locations: list[dict[str, object]], fallback: str) -> str:
+    if not locations:
+        return f"- {fallback}"
+    lines: list[str] = []
+    for item in locations[:MAX_TEST_LOCATIONS]:
+        count = item["count"]
+        parts = []
+        for entry in item["patterns"]:
+            label = entry["pattern"]
+            if label.startswith("other "):
+                parts.append(f"{entry['count']} other `{label[len('other '):]}`")
+            else:
+                parts.append(f"{entry['count']} `{label}`")
+        noun = "file" if count == 1 else "files"
+        lines.append(f"- `{item['path']}` — {count} {noun}: {', '.join(parts)}")
+    hidden = locations[MAX_TEST_LOCATIONS:]
+    if hidden:
+        hidden_files = sum(item["count"] for item in hidden)
+        lines.append(f"- ... and {len(hidden)} more locations ({hidden_files} files)")
+    # Same continuation indent as bullet_list(); see the comment there.
+    return "\n    ".join(lines)
+
+
 def inventory(root: Path, explain_skips: bool = False) -> dict[str, object]:
     scan = scan_inventory(root)
     files = scan.files
@@ -585,11 +754,8 @@ def inventory(root: Path, explain_skips: bool = False) -> dict[str, object]:
         or str(p).startswith(("docs/", ".docs/"))
         or p.name in {"AGENTS.md", "CLAUDE.md", "GEMINI.md", "copilot-instructions.md"}
     ]
-    tests = [
-        str(p)
-        for p in files
-        if "test" in p.parts or "tests" in p.parts or p.name.startswith("test_") or p.name.endswith("_test.go")
-    ]
+    test_files = [p for p in files if test_pattern(p) is not None]
+    tests = [str(p) for p in test_files]
     lang_counts: dict[str, int] = {}
     for p in files:
         lang = LANG_EXTS.get(p.suffix.lower())
@@ -603,6 +769,8 @@ def inventory(root: Path, explain_skips: bool = False) -> dict[str, object]:
         "manifests": manifests[:20],
         "docs": docs[:30],
         "tests": tests[:30],
+        "test_count": len(tests),
+        "test_locations": test_locations(test_files),
     }
     if explain_skips:
         result["skipped"] = [{"path": item.path, "reason": item.reason} for item in scan.skipped]
@@ -2258,7 +2426,7 @@ def routing_body(inv: dict[str, object]) -> str:
 
     ## Detected Tests
 
-    {bullet_list(inv["tests"], "No obvious tests detected. Identify the narrowest available validation manually.")}
+    {test_location_list(inv["test_locations"], "No obvious tests detected. Identify the narrowest available validation manually.")}
 
     ## Missing Context Rule
 
@@ -2472,6 +2640,11 @@ def print_inventory(root: Path, json_output: bool = False, explain_skips: bool =
     print("tests:")
     for item in inv["tests"]:
         print(f"  - {item}")
+    if inv["test_count"] > len(inv["tests"]):
+        print(f"  - ... and {inv['test_count'] - len(inv['tests'])} more")
+    print("test_locations:")
+    for item in inv["test_locations"]:
+        print(f"  - {item['path']}: {item['count']}")
     if explain_skips:
         print("skipped:")
         for item in inv.get("skipped", []):

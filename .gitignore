@@ -38,7 +38,8 @@ mail_setting.yaml
 *.log
 *.log.err
 .agent/
-.claude/
+.claude/settings.local.json
+.claude/worktrees/
 
 # Performance test data
 .narou_perf_test/
