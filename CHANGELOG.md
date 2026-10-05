@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+### 🐛 バグ修正
+
+- **ノクターン・ムーンライト・ミッドナイト（novel18.syosetu.com）で、前書きのある話の本文が前書きに置き換わって保存される不具合を修正** (#134)
+  - Nokogiri エンジンの本文セレクタ（`preset/parsers/novel18.syosetu.com.yaml` の `body_selectors`）が前書き・後書きの要素にも当てはまっていたため、小説家になろうと同じく前書き・後書きを除外するようにした。
+  - 3.0.0 以降にこの不具合の影響を受けて保存された話は、更新日時が変わらない限り `update` では取り直されません。該当する小説は `narou-mod download --force <対象>` で全話を再ダウンロードしてください。
+  - Web UI のパーサー設定から `.narou/parsers/novel18.syosetu.com.yaml` に `body_selectors` を保存している場合は、そちらの設定が優先されるため、同様に除外を追加してください。
+
 ### 🔧 メンテナンス
 
 - **REST API v2 の OpenAPI 仕様を実装に同期**
