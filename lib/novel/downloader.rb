@@ -233,6 +233,7 @@ class Downloader
         # 著者名が更新されている場合
         @stream.puts "#{id_and_title} の著者名が更新されています"
         update_database
+        :ok
       else
         :none
       end
