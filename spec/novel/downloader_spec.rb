@@ -158,6 +158,45 @@ describe Downloader do
     end
   end
 
+  describe "#run_download" do
+    def toc(author: "著者A")
+      {
+        "title" => "タイトル",
+        "author" => author,
+        "story" => "あらすじ",
+        "subtitles" => [{"index" => "1", "subtitle" => "第一話"}]
+      }
+    end
+
+    # 著者名だけが更新された場合も :ok を返し、update -n で変換を飛ばせること (#138)
+    it "returns :ok when only the author name has changed" do
+      old_toc = toc(author: "著者A")
+      latest_toc = toc(author: "著者B")
+      stream = double("stream")
+      downloader = Downloader.allocate
+      downloader.instance_variable_set(:@id, 1)
+      downloader.instance_variable_set(:@title, "タイトル")
+      downloader.instance_variable_set(:@setting, {})
+      downloader.instance_variable_set(:@stream, stream)
+      downloader.instance_variable_set(:@new_novel, false)
+      downloader.instance_variable_set(:@force, false)
+      allow(downloader).to receive(:load_toc_file).and_return(old_toc)
+      allow(downloader).to receive(:get_latest_table_of_contents).and_return(latest_toc)
+      allow(downloader).to receive(:init_raw_dir)
+      allow(downloader).to receive(:update_body_check).and_return([])
+      allow(downloader).to receive(:process_digest).and_return(false)
+      allow(downloader).to receive(:update_database).and_return(nil)
+      allow(downloader).to receive(:record).and_return({"tags" => []})
+      allow(downloader).to receive(:save_toc_once)
+      allow(downloader).to receive(:novel_end?).and_return(nil)
+      allow(Inventory).to receive(:load).with("local_setting").and_return({})
+      expect(stream).to receive(:puts).with(include("の著者名が更新されています"))
+
+      expect(downloader.run_download).to eq(:ok)
+      expect(downloader).to have_received(:update_database)
+    end
+  end
+
   describe "#start_download result structure" do
     # start_download の戻り値の構造をテスト
     # OpenStruct で id, new_arrivals, status を返す
