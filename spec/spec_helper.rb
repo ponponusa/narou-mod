@@ -48,50 +48,50 @@ ARGV.replace(original_argv)
 
 SimpleCov.start do
   # テスト関連
-  add_filter "/spec/"
+  skip "/spec/"
 
   # フロントエンド（Astro/Svelte）
-  add_filter "/frontend/"
+  skip "/frontend/"
 
   # Legacy Web UI（静的ファイルとビュー）
-  add_filter "/lib/web/public/"
-  add_filter "/lib/web/views/"
+  skip "/lib/web/public/"
+  skip "/lib/web/views/"
 
   # テンプレートファイル（ERB等）
-  add_filter "/lib/cli/command/markdown/"
+  skip "/lib/cli/command/markdown/"
 
   # ドキュメント・設定ファイル
-  add_filter "/docs/"
-  add_filter "/coverage/"
-  add_filter "/preset/"
-  add_filter "/template/"
-  add_filter "/tmp/"
-  add_filter "/webnovel/"
+  skip "/docs/"
+  skip "/coverage/"
+  skip "/preset/"
+  skip "/template/"
+  skip "/tmp/"
+  skip "/webnovel/"
 
   # 小説データディレクトリ
-  add_filter "/小説データ/"
-  add_filter "/小説データ_perf_test/"
+  skip "/小説データ/"
+  skip "/小説データ_perf_test/"
 
   # 実行スクリプト・バイナリ
-  add_filter "/bin/"
-  add_filter "/vendor/"
-  add_filter "/.bundle/"
+  skip "/bin/"
+  skip "/vendor/"
+  skip "/.bundle/"
 
   # 隠しディレクトリ・ファイル
-  add_filter %r{^/\.} # . で始まるファイル・ディレクトリ
+  skip %r{^/\.} # . で始まるファイル・ディレクトリ
 
   # プロジェクトルートの個別ファイル（narou.rb と clean_appserver.rb 以外）
-  add_filter "/narou-mod.gemspec"
-  add_filter "/narou-mod.bat"
-  add_filter "/Rakefile"
-  add_filter "/Gemfile"
-  add_filter "/commitversion"
-  add_filter "/performance_report.txt"
-  add_filter "/trace_dump.txt"
-  add_filter "/backend.log"
-  add_filter "/sync-to-windows.sh"
-  add_filter "/rsync.env"
-  add_filter "/narou-mod-2.1.0.dev.gem"
+  skip "/narou-mod.gemspec"
+  skip "/narou-mod.bat"
+  skip "/Rakefile"
+  skip "/Gemfile"
+  skip "/commitversion"
+  skip "/performance_report.txt"
+  skip "/trace_dump.txt"
+  skip "/backend.log"
+  skip "/sync-to-windows.sh"
+  skip "/rsync.env"
+  skip "/narou-mod-2.1.0.dev.gem"
 end
 
 Encoding.default_external = Encoding::UTF_8

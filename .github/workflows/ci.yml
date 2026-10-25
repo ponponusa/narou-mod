@@ -79,36 +79,17 @@ jobs:
     env:
       BUNDLE_JOBS: "1"
       BUNDLE_RETRY: "3"
-      BUNDLE_PATH: vendor/bundle
-      BUNDLER_VERSION: "2.7.2"
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Ruby (3.4)
+      # Bundler は Gemfile.lock の BUNDLED WITH に合わせて setup-ruby が導入する
+      - name: Set up Ruby (4.0)
         uses: ruby/setup-ruby@v1
         with:
-          ruby-version: "3.4"
-          bundler-cache: false
-
-      - name: Install bundler
-        run: gem install bundler:${{ env.BUNDLER_VERSION }}
-
-      - name: Cache bundle
-        uses: actions/cache@v4
-        with:
-          path: vendor/bundle
-          key: ${{ runner.os }}-ruby-3.4-bundle-${{ hashFiles('**/Gemfile.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-ruby-3.4-bundle-
-            ${{ runner.os }}-ruby-
-            ${{ runner.os }}-
-
-      - name: Bundle install
-        run: |
-          bundle _${BUNDLER_VERSION}_ config set path "${BUNDLE_PATH}"
-          bundle _${BUNDLER_VERSION}_ check || bundle _${BUNDLER_VERSION}_ install
+          ruby-version: "4.0"
+          bundler-cache: true
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -157,7 +138,7 @@ jobs:
       - name: Run RSpec
         run: |
           mkdir -p test_results/rspec
-          bundle _${BUNDLER_VERSION}_ exec rspec \
+          bundle exec rspec \
             --format progress \
             --format RspecJunitFormatter \
             --out test_results/rspec/results.xml
@@ -184,6 +165,32 @@ jobs:
           path: frontend/dist
 
   #
+  # 1b) Ruby 3.4 互換性チェック
+  #    - required_ruby_version (>= 3.4) の下限で RSpec を実行
+  #
+  rspec-ruby-3_4:
+    if: github.event_name == 'pull_request'
+    name: rspec-ruby-3.4
+    runs-on: ubuntu-latest
+
+    env:
+      BUNDLE_JOBS: "1"
+      BUNDLE_RETRY: "3"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Ruby (3.4)
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.4"
+          bundler-cache: true
+
+      - name: Run RSpec
+        run: bundle exec rspec --format progress
+
+  #
   # 2) Linux/macOS 向け gem をビルド
   #    - release / draft ブランチへの push で実行
   #    - Astro UI をビルドして含める
@@ -194,9 +201,6 @@ jobs:
     name: Build gem (Linux/macOS)
     runs-on: ubuntu-latest
 
-    env:
-      BUNDLER_VERSION: "2.7.2"
-
     outputs:
       gemfile: ${{ steps.build.outputs.gemfile }}
       version: ${{ steps.get_version.outputs.version }}
@@ -205,18 +209,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Ruby (3.4)
+      - name: Set up Ruby (4.0)
         uses: ruby/setup-ruby@v1
         with:
-          ruby-version: "3.4"
-          bundler-cache: false
-
-      - name: Install bundler
-        run: gem install bundler:${{ env.BUNDLER_VERSION }}
-
-      - name: Bundle install
-        run: |
-          bundle _${BUNDLER_VERSION}_ install --path vendor/bundle
+          ruby-version: "4.0"
+          bundler-cache: true
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -270,10 +267,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Ruby (3.4 on Windows)
+      - name: Set up Ruby (4.0 on Windows)
         uses: ruby/setup-ruby@v1
         with:
-          ruby-version: "3.4"
+          ruby-version: "4.0"
           bundler-cache: false
 
       - name: Set up Node.js

@@ -1,5 +1,15 @@
 # 更新履歴 - ChangeLog
 
+## Unreleased
+
+### 🔧 メンテナンス
+
+- **バックエンドの依存 gem を更新**
+  - Web サーバーの puma を 6 系から 8 系へ更新しました。narou-mod は常に待ち受けアドレスを指定して起動するため、puma 8 で変わった既定の待ち受けアドレス（IPv6）の影響は受けません。
+  - parallel を 2 系、nkf を 0.3 系へ更新し、activesupport の下限を 8.1.4 に引き上げました（json 3 系への対応）。その他の依存 gem も互換性のある最新版に更新しています。
+  - 動作要件は引き続き Ruby 3.4 以上です。Ruby 4.0 でも動作します。
+  - 開発環境: Bundler を 4.0 系へ、CI の Ruby を 4.0 へ移行しました（Ruby 3.4 でのテストも継続）。開発用依存の rubocop・simplecov・ruby-prof・rspec_junit_formatter を更新し、Ruby 4.0 で標準添付から外れた benchmark を追加しました。
+
 ## 3.1.10 (2026-10-09)
 
 ### 🐛 バグ修正
