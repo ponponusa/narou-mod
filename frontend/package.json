@@ -25,23 +25,23 @@
     "*.{ts,js,svelte,astro,css,json}": "prettier --write"
   },
   "dependencies": {
-    "@astrojs/check": "^0.9.6",
-    "@astrojs/svelte": "^9.0.1",
+    "@astrojs/check": "^0.9.12",
+    "@astrojs/svelte": "^9.1.1",
     "@tailwindcss/vite": "^4.2.0",
-    "astro": "^7.2.1",
-    "svelte": "^5.53.0",
+    "astro": "^7.4.2",
+    "svelte": "^5.57.2",
     "tailwindcss": "^4.2.0",
     "typescript": "^6.0.3"
   },
   "devDependencies": {
-    "@playwright/test": "^1.58.2",
-    "@types/node": "^24.13.3",
+    "@playwright/test": "^1.64.1",
+    "@types/node": "^24.19.2",
     "html-validate": "^10.17.0",
     "husky": "^9.1.7",
-    "lint-staged": "^17.3.0",
+    "lint-staged": "^17.6.0",
     "parse5": "^8.0.1",
-    "playwright": "^1.58.2",
-    "prettier": "^3.8.1",
+    "playwright": "^1.64.1",
+    "prettier": "^3.9.10",
     "prettier-plugin-astro": "^0.14.1",
     "prettier-plugin-svelte": "^4.1.1"
   },
