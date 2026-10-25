@@ -32,6 +32,8 @@ export default defineConfig({
       url: `http://127.0.0.1:${BACKEND_PORT}/api/v2/system/version`,
       reuseExistingServer: false,
       timeout: 120_000,
+      // narou はエラーを stdout に出力するため、起動失敗の原因をログに残す
+      stdout: "pipe",
       gracefulShutdown: {
         signal: "SIGTERM",
         timeout: 15_000,
