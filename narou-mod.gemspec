@@ -123,7 +123,7 @@ Gem::Specification.new do |gem|
   # ---------------------------------------------------------------------------
 
   # 基本ライブラリ
-  gem.add_runtime_dependency "activesupport",      "~> 8.0",  ">= 8.1.0"
+  gem.add_runtime_dependency "activesupport",      "~> 8.0",  ">= 8.1.4"
   gem.add_runtime_dependency "diff-lcs",           "~> 1.6",  ">= 1.6.2"
   gem.add_runtime_dependency "memoist",            "~> 0.16.2"
   gem.add_runtime_dependency "systemu",            "~> 2.6",  ">= 2.6.5"
@@ -138,7 +138,7 @@ Gem::Specification.new do |gem|
   gem.add_runtime_dependency "pony",               "~> 1",    ">= 1.13"
 
   # Webサーバー（Sinatra + Puma）
-  gem.add_runtime_dependency "puma",               "~> 6.4"
+  gem.add_runtime_dependency "puma",               "~> 8.0"
   gem.add_runtime_dependency "rack",               ">= 3.0",  "< 4"
   gem.add_runtime_dependency "rack-session",       "~> 2.1",  ">= 2.1.1"
   gem.add_runtime_dependency "rackup",             "~> 2.1"
@@ -163,14 +163,14 @@ Gem::Specification.new do |gem|
 
   # Ruby標準ライブラリ（bundled gem化対応）
   gem.add_runtime_dependency "csv",                "~> 3.3"
-  gem.add_runtime_dependency "nkf",                "~> 0.2.0"
+  gem.add_runtime_dependency "nkf",                "~> 0.3.0"
   gem.add_runtime_dependency "ostruct",            "~> 0.6.3"
   gem.add_runtime_dependency "psych",              "~> 5.2"
   gem.add_runtime_dependency "rexml",              "~> 3.4"
 
   # その他
   gem.add_runtime_dependency "open_uri_redirections", "~> 0.2", ">= 0.2.1"
-  gem.add_runtime_dependency "parallel",              "~> 1.26"
+  gem.add_runtime_dependency "parallel",              "~> 2.3"
   gem.add_runtime_dependency "unicode-display_width", ">= 1.5", "< 3.0"
 
   # ---------------------------------------------------------------------------
@@ -199,14 +199,15 @@ Gem::Specification.new do |gem|
   # 開発時依存関係（Development Dependencies）
   # ---------------------------------------------------------------------------
   gem.add_development_dependency "awesome_print",         "~> 1.9"
+  gem.add_development_dependency "benchmark",             "~> 0.5"
   gem.add_development_dependency "pry",                   "~> 0.16"
   gem.add_development_dependency "pry-byebug",            "~> 3.12"
   gem.add_development_dependency "rack-test",             "~> 2.1"
   gem.add_development_dependency "rspec",                 "~> 3.13"
   gem.add_development_dependency "rspec-retry",           "~> 0.6"
-  gem.add_development_dependency "rspec_junit_formatter", "~> 0.6"
-  gem.add_development_dependency "rubocop",               "~> 1.82"
-  gem.add_development_dependency "ruby-prof",             "~> 1.7"
-  gem.add_development_dependency "simplecov",             "~> 0.22"
+  gem.add_development_dependency "rspec_junit_formatter", "~> 0.8"
+  gem.add_development_dependency "rubocop",               "~> 1.92"
+  gem.add_development_dependency "ruby-prof",             "~> 2.0", ">= 2.0.5"
+  gem.add_development_dependency "simplecov",             "~> 1.3"
   gem.add_development_dependency "timecop",               "~> 0.9"
 end

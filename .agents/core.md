@@ -57,7 +57,7 @@ This file is the source of truth for repository-wide policy. Keep provider-speci
 
 `narou-mod` is a Ruby gem and CLI for downloading, maintaining, and converting Japanese web novels. It also ships a Sinatra server and an Astro/Svelte frontend that is built into the gem.
 
-- Runtime baseline: Ruby 3.4 or newer (`required_ruby_version` in `narou-mod.gemspec`). `Gemfile.lock` pins Bundler 2.7.2, as CI does, and newer Bundlers switch to that version automatically; if `bundle` fails while loading bundler 2.7.2, report it instead of skipping validation silently. There is no `.ruby-version`, so a local Ruby may be newer than 3.4; keep code 3.4-compatible.
+- Runtime baseline: Ruby 3.4 or newer (`required_ruby_version` in `narou-mod.gemspec`). `Gemfile.lock` pins Bundler 4.0.23 (`BUNDLED WITH`), which CI installs through `ruby/setup-ruby`; if `bundle` fails while loading that version, report it instead of skipping validation silently. CI runs the main job on Ruby 4.0 and RSpec alone on Ruby 3.4 (`rspec-ruby-3_4`). There is no `.ruby-version`, so a local Ruby may be newer than 3.4; keep code 3.4-compatible.
 - Backend: Sinatra 4, Rack 3, Puma, ActiveSupport 8, Nokogiri, rubyzip, Haml 5 (pinned below 6 for the legacy views), Tilt, and sass-embedded.
 - Frontend: Astro/Svelte under `frontend/`; its stack, commands, and rules live only in `frontend/AGENTS.md`.
 - Ruby entry points: `narou.rb` for the checkout and `bin/narou-mod` for the packaged executable. `bin/narou-mod` runs `./narou.rb` whenever the current directory contains `narou.rb`, so an installed gem started from the repository root executes checkout code.
