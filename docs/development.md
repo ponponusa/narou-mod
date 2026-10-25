@@ -6,7 +6,7 @@ Narou.rb MOD の開発に必要な環境構築、開発ワークフロー、ビ�
 ## 必要環境 - Prerequisites
 
 - Ruby 3.4 以上 / Bundler 4.0 系（`Gemfile.lock` の `BUNDLED WITH` に合わせる。CI は Ruby 4.0 で全体を、Ruby 3.4 で RSpec を実行）
-- Node.js 24 以上 / npm（フロントエンド開発時）
+- Node.js 24.8 以上 / npm（フロントエンド開発時）
 - MSYS2 環境（Windows の場合）
 
 ## バックエンド開発 - Backend Development
