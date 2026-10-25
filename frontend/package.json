@@ -42,7 +42,7 @@
     "parse5": "^8.0.1",
     "playwright": "^1.64.1",
     "prettier": "^3.9.10",
-    "prettier-plugin-astro": "^0.14.1",
+    "prettier-plugin-astro": "^1.1.2",
     "prettier-plugin-svelte": "^4.1.1"
   },
   "overrides": {

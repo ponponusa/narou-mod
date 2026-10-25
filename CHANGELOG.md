@@ -11,7 +11,7 @@
 
 - **フロントエンドの依存パッケージを更新**
   - Astro を 7.4 系、Svelte を 5.57 系へ更新し、npm audit で報告されていた脆弱性（Astro の画像最適化経由のリモートコード実行を含む）をすべて解消しました。
-  - 開発環境: Playwright を 1.64 系へ更新しました。TypeScript 7 は Astro の型チェック（astro check）が未対応のため、引き続き 6 系を使います。
+  - 開発環境: Playwright を 1.64 系、html-validate を 11 系、prettier-plugin-astro を 1 系へ更新しました。フロントエンド開発に必要な Node.js は 24.8 以上になります。TypeScript 7 は Astro の型チェック（astro check）が未対応のため、引き続き 6 系を使います。
 
 - **バックエンドの依存 gem を更新**
   - Web サーバーの puma を 6 系から 8 系へ更新しました。narou-mod は常に待ち受けアドレスを指定して起動するため、puma 8 で変わった既定の待ち受けアドレス（IPv6）の影響は受けません。
